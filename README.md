@@ -1,5 +1,5 @@
 # MirrorFS
-An implementation of a userland secure Bind filesystem, written in Rust, on top of [rust-fuse]. (https://github.com/zargony/rust-fuse)
+An implementation of a userland secure Bind filesystem, written in Rust, on top of [rust-fuse.] (https://github.com/zargony/rust-fuse)
 It is designed to leverage modern Linux technologies, such as capabilities and FSUID/FSGID, which makes it very Linux specific. (But if you come up with a nice patch to some other platform's technologies, it will probably not be rejected.)  
 
 ###Features
@@ -15,7 +15,7 @@ It is designed to leverage modern Linux technologies, such as capabilities and F
 - large spectrum of verbosity: from quiet to extremely verbose, for the curious (or the debugging one)
 
 ###Stage Beta
-*To do for release 1.0.0*  
+*To do for release 1.0.0 :*  
 - bug tracking...  
 - optimizazions  
 - resolving all the FIXME's and most of the TODO's in the source code  
