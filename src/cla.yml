@@ -1,0 +1,46 @@
+name: MirrorFS
+about: An implementation of a userland secure Bind filesystem, written in Rust.
+args:
+    - SRC:
+        help: The original directory.
+        required: true
+        index: 1
+    - DST:
+        help: The directory where the mirror will be mounted to.
+        required: true
+        index: 2
+    - usermap:
+        short: u
+        long: user-map
+        value_names: ["ORIGIN-USER", "EMBODIED-USER"]
+        help: "Map a specific user onto another user: when Alice is mapped onto Tom, she will be seen as Tom and not as Alice, for whatever she does inside the filesystem. This option may be called multiple times to map many users. This requires the CAP_SETUID capability, which preferably is enabled by setcap. It is normally provided when run as root as well of course."
+        takes_value: true
+        number_of_values: 2
+        multiple: true
+    - groupmap:
+        short: g
+        long: group-map
+        value_names: ["ORIGIN-GROUP", "EMBODIED-GROUP"]
+        help: "The same as the --user-map option, but mapping groups instead of users. This requires the CAP_SETGID capability, which preferably is enabled by setcap. It is normally provided when run as root as well of course."
+        takes_value: true
+        number_of_values: 2
+        multiple: true
+    - fullaccess:
+        short: A
+        long: full-access
+        value_name: "USER ..."
+        help: "Override DAC security for the specified USERs : these users are given unchecked, unrestricted access to the files on the filesystem, as if they were ROOT. Multiple users may be entered. This option requires the CAP_FOWNER and CAP_DAC_OVERRIDE capabilities on the filesystem implementation (root, among others, has that capability)."
+        takes_value: true
+        min_values: 1
+    - verbosity:
+        short: v
+        long: verbosity
+        value_name: LEVEL
+        help: Sets the level of verbosity, ie. how much information will be dumped to screen.
+        takes_value: true
+        possible_values: ["Quiet", "Error", "Warn", "Info", "Debug", "Trace"]
+        default_value: "Error"
+    - quiet:
+        short: q
+        long: quiet
+        help: Alias to --verbosity Quiet
