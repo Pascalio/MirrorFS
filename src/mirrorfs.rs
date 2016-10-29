@@ -39,7 +39,7 @@ pub struct Settings {
 	// TODO: This implements process to disk mapping. Should we emplement reverse disk to process mapping too ?
 	pub user_map : HashMap<Uid, Uid>,
 	pub group_map : HashMap<Gid, Gid>,
-	caps : Capabilities,
+	pub caps : Capabilities,
 }
 impl Settings {
 	pub fn has_cap(&self, cap: Capability) -> bool {
@@ -1000,6 +1000,7 @@ impl Filesystem for MirrorFS {
         trace!("_position = {:?}", _position);
         // FIXME: Should the be before user_map ?
         let cap_token = self.set_cap(Capability::CAP_FOWNER);
+        let setfcap_token = self.set_cap(Capability::CAP_SETFCAP);
         
 		if path.with_nix_path( |cstr| {
 			unsafe{
@@ -1016,7 +1017,7 @@ impl Filesystem for MirrorFS {
 			reply.ok();
 		} else {
 			let e = nix::errno::errno();
-			warn!("Could not set value {:?} for name {:?} for file {}", value, name, path.display());
+			warn!("Could not set value {:?} for name {:?} for file {} : error number {}", value, name, path.display(), e); // value.to_string
 			reply.error(e);
 		}
     }

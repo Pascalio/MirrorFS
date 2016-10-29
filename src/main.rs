@@ -68,6 +68,7 @@ fn main () {
 	// Check for all usable caps.
 	let chown_cap = caps.check(Capability::CAP_CHOWN, Flag::Permitted); // for chown obviously
 	let fowner_cap = caps.check(Capability::CAP_FOWNER, Flag::Permitted); // for extended attributes; Note: if setfsuid did not unset CAP_FOWNER, this (process-wide) capability would make a huge race condition privilege escalation bug. FIXME: check with non-zero uid which has received capabilities.
+	let setfcap_cap = caps.check(Capability::CAP_SETFCAP, Flag::Permitted); // for setting file capabilities. FIXME: cf fowner_cap...
 	let mknod_cap = caps.check(Capability::CAP_MKNOD, Flag::Permitted); // for mknod only in case of neither regular file, nor FIFO, nor Unix domain socket
 	let dac_override_cap = caps.check(Capability::CAP_DAC_OVERRIDE, Flag::Permitted); // used by the "full-access" option
 	let fsuid_cap = caps.check(Capability::CAP_SETUID, Flag::Permitted); // for every fs operation on the behalf of another user.
@@ -89,13 +90,16 @@ fn main () {
 	if fowner_cap {
 		caps.update(&[Capability::CAP_FOWNER], Flag::Permitted, true);
 	}
+	if setfcap_cap {
+		caps.update(&[Capability::CAP_SETFCAP], Flag::Permitted, true);
+	}
 	if mknod_cap {
 		caps.update(&[Capability::CAP_MKNOD], Flag::Permitted, true);
 	}
 	if dac_override_cap {
 		caps.update(&[Capability::CAP_DAC_OVERRIDE], Flag::Permitted, true);
 	}
-	// Apply the restricted Capability set.
+	 //Apply the restricted Capability set.
 	let caps_res = caps.apply();
 	let new_caps = Capabilities::from_current_proc().unwrap();
 	match caps_res {

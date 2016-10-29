@@ -19,6 +19,7 @@ pub struct UserMap {
 
 impl Drop for UserMap {
 	fn drop(&mut self) {
+		// FIXME: BUG switching back to uid=0 bring back almost all caps to effective !
 		if self.n_user != self.o_user {
 			trace!("Trying to restore FS UID from the requesting UID {} to our own UID {} (it should probably work.)", self.n_user, self.o_user);
 			unsafe {
@@ -30,6 +31,11 @@ impl Drop for UserMap {
 			unsafe {
 				syscall!(SETFSGID, self.o_group);
 			}
+		}
+		if self.n_user != 0 && self.o_user == 0 {
+			// Caps politics says that when switching from non-zero to zero, all permitted caps become effective. Which is what we've struggled not to do since the beginning.
+			self.settings.caps.apply().unwrap();
+			// FIXME: is it needed to drop effective caps for root ??
 		}
 	}
 }
@@ -50,7 +56,8 @@ impl Drop for CapToken {
 impl MirrorFS {
     pub fn userprelude(&self, req: &Request) -> UserMap {
         let (user, group) = self.usermap(req);
-        
+        			trace!("New set of caps: {}", Capabilities::from_current_proc().unwrap());
+
 		let o_user;
 		let o_group;
 		// TODO: optimize for regular case where no full access.
@@ -90,6 +97,7 @@ impl MirrorFS {
 			trace!("No need to embody requesting group.");
 			o_group = group;
 		}
+			trace!("New set of caps: {}", Capabilities::from_current_proc().unwrap());
 
         UserMap {
 			o_user : o_user,
@@ -125,6 +133,7 @@ impl MirrorFS {
 			caps.update(&[cap], Flag::Effective, true);
 			caps.apply().expect("Applying caps should not fail!");
 			trace!("Just set process wide capability {}", cap);
+			trace!("New set of caps: {}", Capabilities::from_current_proc().unwrap());
 			Some(CapToken{cap: cap})
 		} else {
 			warn!("The capability {} is not permitted, action may fail!", cap);
