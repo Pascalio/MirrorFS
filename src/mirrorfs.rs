@@ -6,7 +6,7 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
 use std::collections::{HashMap, HashSet};
 use fuse::*;
 use time::*;
-use libc::{c_int, ENOSYS, ENOENT, EEXIST, EPERM, O_RDWR, O_RDONLY, O_WRONLY, O_APPEND, O_TRUNC};
+use libc::{c_int, ENOSYS, ENOENT, EEXIST, O_RDWR, O_RDONLY, O_WRONLY, O_APPEND, O_TRUNC};
 use libc;
 use self::multimap::MultiMap;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -648,12 +648,6 @@ impl Filesystem for MirrorFS {
 
         let kind = stat::SFlag::from_bits_truncate(_mode as libc::mode_t);
         let perm = stat::Mode::from_bits_truncate(_mode as libc::mode_t);
-        
-        let cap_token = self.set_cap(Capability::CAP_MKNOD);
-        if cap_token.is_none() {
-			// We don't pre-evaluate whether the call WILL fail or not, this is more portable.
-			warn!("Does not have the CAP_MKNOD capability, mknod() might fail on certain special file types!");
-		}
 
         match stat::mknod(&node, kind, perm, _rdev as nix::sys::stat::dev_t) {
             Ok(_) => {
@@ -732,12 +726,6 @@ impl Filesystem for MirrorFS {
         }
 
         if _uid.is_some() || _gid.is_some() {
-			let cap_token = self.set_cap(Capability::CAP_CHOWN);
-			if cap_token.is_none(){
-				warn!("Cannot chown : the fuse filesystem process lacks the CAP_CHOWN capability!");
-				reply.error(EPERM);
-				return;
-			}
             let md = match path.symlink_metadata() {
                 Ok(md) => md,
                 Err(why) => {
@@ -998,9 +986,6 @@ impl Filesystem for MirrorFS {
 
         //What's the use of _position ???
         trace!("_position = {:?}", _position);
-        // FIXME: Should the be before user_map ?
-        let cap_token = self.set_cap(Capability::CAP_FOWNER);
-        let setfcap_token = self.set_cap(Capability::CAP_SETFCAP);
         
 		if path.with_nix_path( |cstr| {
 			unsafe{
@@ -1027,9 +1012,7 @@ impl Filesystem for MirrorFS {
 
         // UserMap restores the fsuid/fsgid by Dropping.
         let user_map = self.userprelude(_req);
-        
-        let cap_token = self.set_cap(Capability::CAP_FOWNER);
-        
+                
         if path.with_nix_path( |cstr| {
 			unsafe{
 				libc::removexattr(

@@ -73,31 +73,36 @@ fn main () {
 	let dac_override_cap = caps.check(Capability::CAP_DAC_OVERRIDE, Flag::Permitted); // used by the "full-access" option
 	let fsuid_cap = caps.check(Capability::CAP_SETUID, Flag::Permitted); // for every fs operation on the behalf of another user.
 	let fsgid_cap = caps.check(Capability::CAP_SETGID, Flag::Permitted); // for every fs operation on the behalf of another user.
-	//Keep only what's needed.
+	//Keep only what's needed. The change of fsuid (in users.rs) will set the effective caps according to embodied user.
 	//TODO: drop based on cli options as well.
 	caps.reset_all();
 	if  fsuid_cap {
 		caps.update(&[Capability::CAP_SETUID], Flag::Permitted, true);
-		caps.update(&[Capability::CAP_SETUID], Flag::Effective, true);// This might be used extremely often, so we keep it effective. Is it wise ?
+		caps.update(&[Capability::CAP_SETUID], Flag::Effective, true);
 	}
 	if fsgid_cap {
 		caps.update(&[Capability::CAP_SETGID], Flag::Permitted, true);
-		caps.update(&[Capability::CAP_SETGID], Flag::Effective, true);// This might be used extremely often, so we keep it effective. Is it wise ?
+		caps.update(&[Capability::CAP_SETGID], Flag::Effective, true);
 	}
 	if chown_cap {
 		caps.update(&[Capability::CAP_CHOWN], Flag::Permitted, true);
+		caps.update(&[Capability::CAP_CHOWN], Flag::Effective, true);
 	}
 	if fowner_cap {
 		caps.update(&[Capability::CAP_FOWNER], Flag::Permitted, true);
+		caps.update(&[Capability::CAP_FOWNER], Flag::Effective, true);
 	}
 	if setfcap_cap {
 		caps.update(&[Capability::CAP_SETFCAP], Flag::Permitted, true);
+		caps.update(&[Capability::CAP_SETFCAP], Flag::Effective, true);
 	}
 	if mknod_cap {
 		caps.update(&[Capability::CAP_MKNOD], Flag::Permitted, true);
+		caps.update(&[Capability::CAP_MKNOD], Flag::Effective, true);
 	}
 	if dac_override_cap {
 		caps.update(&[Capability::CAP_DAC_OVERRIDE], Flag::Permitted, true);
+		caps.update(&[Capability::CAP_DAC_OVERRIDE], Flag::Effective, true);
 	}
 	 //Apply the restricted Capability set.
 	let caps_res = caps.apply();
