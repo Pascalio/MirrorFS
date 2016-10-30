@@ -16,7 +16,6 @@ pub struct UserMap {
 
 impl Drop for UserMap {
 	fn drop(&mut self) {
-		// FIXME: BUG switching back to uid=0 bring back almost all caps to effective !
 		if self.n_user != self.o_user {
 			trace!("Trying to restore FS UID from the requesting UID {} to our own UID {} (it should probably work.)", self.n_user, self.o_user);
 			unsafe {
