@@ -15,6 +15,7 @@ extern crate syscall;
 extern crate clap;
 extern crate capabilities;
 extern crate users;
+extern crate fnv;
 
 // Own modules
 mod mirrorfs;
@@ -22,15 +23,16 @@ mod inodecache;
 mod helper;
 mod filehandles;
 mod user;
+mod fasthashes;
 
 use clap::{App, AppSettings};
 use simplelog::{FileLogger, SimpleLogger, CombinedLogger, LogLevelFilter};
 use std::fs::OpenOptions;
-use std::collections::{HashMap, HashSet};
 use capabilities::*;
 use users::{get_current_uid, get_current_gid, get_user_by_name, get_group_by_name};
 // Own namespaces
 use mirrorfs::MirrorFS;
+use fasthashes::*;
 
 // Do not forget to have libfuse-dev and libcap-dev installed to compile on Linux!
 
@@ -115,10 +117,10 @@ fn main () {
 	
 	#[cfg(feature="enable_unsecure_features")] {
 		// Build optional map of users who may override DAC, thus getting full access to any file.
-		let mut fullaccess_set : HashSet<u32>;
+		let mut fullaccess_set : FastSet;
 		if let Some(users) = args.values_of("fullaccess") {
 			if fowner_cap && dac_override_cap {
-				fullaccess_set = HashSet::new(); // TODO: optimize with capacity...
+				fullaccess_set = Default::default(); // TODO: optimize with capacity...
 				for a_user in users {
 					if let Some(u) = get_user_by_name(a_user) {
 						fullaccess_set.insert(u.uid());
@@ -128,16 +130,16 @@ fn main () {
 					}
 				}
 			} else {
-				fullaccess_set = HashSet::with_capacity(0);
+				fullaccess_set = Default::default();
 				error!("The CAP_FOWNER CAP_DAC_OVERRIDE capabilities are needed in order to be able to give certain users full access. Option is therefore dropped.");
 			}
 		} else {
-			fullaccess_set = HashSet::with_capacity(0);
+			fullaccess_set = Default::default();
 		}
 		
 		// Build optional user map.
 		let no_maps = args.occurrences_of("usermap") as usize;// TODO: or inline ??
-		let mut user_maps : HashMap<u32, u32> = HashMap::with_capacity(no_maps); // TODO: Other hasher.
+		let mut user_maps : FastMap = Default::default(); // TODO: Other hasher.
 		if let Some(maps) = args.values_of("usermap") {
 			if !fsuid_cap {error!("We lack the CAP_SETUID capability. So user mapping is likely to fail in most cases!");}
 			let mut second_arg = false; // Any easier way in clap ??
@@ -167,7 +169,7 @@ fn main () {
 		}
 		// Build optional group map.
 		let no_maps = args.occurrences_of("groupmap") as usize;// TODO: or inline ??
-		let mut group_maps : HashMap<u32, u32> = HashMap::with_capacity(no_maps); // TODO: Other hasher.
+		let mut group_maps : FastMap = Default::default(); // TODO: Other hasher.
 		if let Some(maps) = args.values_of("groupmap") {
 			if !fsgid_cap {error!("We lack the CAP_SETGID capability. So group mapping is likely to fail in most cases!");}
 			let mut second_arg = false; // Any easier way in clap ??

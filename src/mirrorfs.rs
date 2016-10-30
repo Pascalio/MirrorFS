@@ -3,7 +3,6 @@ extern crate multimap;
 
 use std::{path, fs, io};
 use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
-use std::collections::{HashMap, HashSet};
 use fuse::*;
 use time::*;
 use libc::{c_int, ENOSYS, ENOENT, EEXIST, O_RDWR, O_RDONLY, O_WRONLY, O_APPEND, O_TRUNC};
@@ -22,6 +21,7 @@ use capabilities::*;
 use inodecache::*;
 use helper::*;
 use user::*;
+use fasthashes::*;
 
 const WRITE : u32 = 2;
 const READ : u32 = 4;
@@ -36,10 +36,10 @@ const TTL: Timespec = Timespec { sec: 1, nsec: 0 };                 // 1 second
 pub struct Settings {
 	pub uid : Uid,
 	pub gid : Gid,
-	pub fullaccess : HashSet<Uid>,
+	pub fullaccess : FastSet,
 	// TODO: This implements process to disk mapping. Should we emplement reverse disk to process mapping too ?
-	pub user_map : HashMap<Uid, Uid>,
-	pub group_map : HashMap<Gid, Gid>,
+	pub user_map : FastMap,
+	pub group_map : FastMap,
 	pub caps : Capabilities,
 }
 #[cfg(not(feature="enable_unsecure_features"))]
@@ -65,7 +65,7 @@ pub struct MirrorFS {
 
 impl MirrorFS {
 	#[cfg(feature="enable_unsecure_features")]
-    pub fn new(base_path : &str, virtual_path : &str, uid: Uid, gid : Gid, user_map : HashMap<Uid, Uid>, group_map : HashMap<Gid, Gid>, fullaccess: HashSet<Uid>, caps: Capabilities) -> MirrorFS {
+    pub fn new(base_path : &str, virtual_path : &str, uid: Uid, gid : Gid, user_map : FastMap, group_map : FastMap, fullaccess:FastSet, caps: Capabilities) -> MirrorFS {
         let mut fs = MirrorFS {
             base_path : base_path.to_owned(),
             virtual_path : virtual_path.to_owned(),

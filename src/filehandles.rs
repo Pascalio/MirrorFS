@@ -58,7 +58,6 @@ impl HotFiles {
         let ino = match hot.by_fh.remove(&fh) {
             Some(entry) => entry.ino,
             None => {
-                // TODO: improve this.
                 error!("This is badly handled: file (handle={}) was taken but not yet restored, and now the attempt to release fails temporarily.", fh);
                 return;
             }

@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use std::path;
 use std::time;
 use std::cmp::Ordering;
+use fasthashes::*;
 
 use filehandles::{Inode, HotFiles};
 // TODO : release_handle frees cache. cf gc index's todo.

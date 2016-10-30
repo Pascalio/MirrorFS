@@ -20,6 +20,7 @@ utime = "0.1"
 syscall = "0.2.1"
 capabilities = "0.2.0"
 users = "0.5.2"
+fnv = "*"
 
 [dependencies.clap]
 version = "2"
