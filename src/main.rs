@@ -117,7 +117,7 @@ fn main () {
 	
 	#[cfg(feature="enable_unsecure_features")] {
 		// Build optional map of users who may override DAC, thus getting full access to any file.
-		let mut fullaccess_set : FastSet;
+		let mut fullaccess_set : FastSet<u32>;
 		if let Some(users) = args.values_of("fullaccess") {
 			if fowner_cap && dac_override_cap {
 				fullaccess_set = Default::default(); // TODO: optimize with capacity...
@@ -139,7 +139,7 @@ fn main () {
 		
 		// Build optional user map.
 		let no_maps = args.occurrences_of("usermap") as usize;// TODO: or inline ??
-		let mut user_maps : FastMap = Default::default(); // TODO: Other hasher.
+		let mut user_maps : FastMap<u32, u32> = Default::default(); // TODO: Other hasher.
 		if let Some(maps) = args.values_of("usermap") {
 			if !fsuid_cap {error!("We lack the CAP_SETUID capability. So user mapping is likely to fail in most cases!");}
 			let mut second_arg = false; // Any easier way in clap ??
@@ -169,7 +169,7 @@ fn main () {
 		}
 		// Build optional group map.
 		let no_maps = args.occurrences_of("groupmap") as usize;// TODO: or inline ??
-		let mut group_maps : FastMap = Default::default(); // TODO: Other hasher.
+		let mut group_maps : FastMap<u32, u32> = Default::default(); // TODO: Other hasher.
 		if let Some(maps) = args.values_of("groupmap") {
 			if !fsgid_cap {error!("We lack the CAP_SETGID capability. So group mapping is likely to fail in most cases!");}
 			let mut second_arg = false; // Any easier way in clap ??

@@ -36,10 +36,10 @@ const TTL: Timespec = Timespec { sec: 1, nsec: 0 };                 // 1 second
 pub struct Settings {
 	pub uid : Uid,
 	pub gid : Gid,
-	pub fullaccess : FastSet,
+	pub fullaccess : FastSet<u32>,
 	// TODO: This implements process to disk mapping. Should we emplement reverse disk to process mapping too ?
-	pub user_map : FastMap,
-	pub group_map : FastMap,
+	pub user_map : FastMap<Uid, Uid>,
+	pub group_map : FastMap<Gid, Gid>,
 	pub caps : Capabilities,
 }
 #[cfg(not(feature="enable_unsecure_features"))]
@@ -65,7 +65,7 @@ pub struct MirrorFS {
 
 impl MirrorFS {
 	#[cfg(feature="enable_unsecure_features")]
-    pub fn new(base_path : &str, virtual_path : &str, uid: Uid, gid : Gid, user_map : FastMap, group_map : FastMap, fullaccess:FastSet, caps: Capabilities) -> MirrorFS {
+    pub fn new(base_path : &str, virtual_path : &str, uid: Uid, gid : Gid, user_map : FastMap<Uid, Uid>, group_map : FastMap<Gid, Gid>, fullaccess:FastSet<u32>, caps: Capabilities) -> MirrorFS {
         let mut fs = MirrorFS {
             base_path : base_path.to_owned(),
             virtual_path : virtual_path.to_owned(),
