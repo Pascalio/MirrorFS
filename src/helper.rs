@@ -54,9 +54,11 @@ impl MirrorFS {
 	pub fn u_access(&self, _req: &Request, path: &Path, _mask: u32) -> Result<(), i32> {
 		let (uid, gid) = self.usermap(_req);
 		
-		if self.settings.fullaccess.contains(&uid) {
-			trace!("User {} is almighty so access is ok!", uid);
-			return Ok(());
+		#[cfg(feature="enable_unsecure_features")] {
+			if self.settings.fullaccess.contains(&uid) {
+				trace!("User {} is almighty so access is ok!", uid);
+				return Ok(());
+			}
 		}
 		
 		match path.symlink_metadata() {

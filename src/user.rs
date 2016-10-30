@@ -5,6 +5,7 @@ use capabilities::{Capabilities, Capability, Flag};
 pub type Uid = u32;
 pub type Gid = u32;
 
+#[cfg(feature="enable_unsecure_features")]
 pub struct UserMap {
 	o_user : Uid,
 	o_group : Gid,
@@ -12,6 +13,13 @@ pub struct UserMap {
 	n_group : Gid,
 	#[allow(dead_code)]
 	caps : Option<CapToken>,
+}
+#[cfg(not(feature="enable_unsecure_features"))]
+pub struct UserMap {
+	o_user : Uid,
+	o_group : Gid,
+	n_user : Uid,
+	n_group : Gid,
 }
 
 impl Drop for UserMap {
@@ -81,38 +89,50 @@ impl MirrorFS {
 			o_group = group;
 		}
 		
-		// TODO: optimize for regular case where no full access.
-		let cap_token = if self.settings.fullaccess.contains(&user) {
-			trace!("Giving {} full access!", user);
-			Some(self.set_cap(&[Capability::CAP_FOWNER, Capability::CAP_DAC_OVERRIDE, Capability::CAP_MKNOD, Capability::CAP_CHOWN, Capability::CAP_SETFCAP]))
-		} else {
-			trace!("Not giving {} full access.", user);
-			None
-		};
-		trace!("Operation will be performed with this capability set : {}", Capabilities::from_current_proc().unwrap());
-
-        UserMap {
-			o_user : o_user,
-			o_group : o_group,
-			n_user : user,
-			n_group : group,
-			caps : cap_token,
+		#[cfg(feature="enable_unsecure_features")] {
+			// TODO: optimize for regular case where no full access.
+			let cap_token = if self.settings.fullaccess.contains(&user) {
+				trace!("Giving {} full access!", user);
+				Some(self.set_cap(&[Capability::CAP_FOWNER, Capability::CAP_DAC_OVERRIDE, Capability::CAP_MKNOD, Capability::CAP_CHOWN, Capability::CAP_SETFCAP]))
+			} else {
+				trace!("Not giving {} full access.", user);
+				None
+			};
+			trace!("Operation will be performed with this capability set : {}", Capabilities::from_current_proc().unwrap());
+			UserMap {
+				o_user : o_user,
+				o_group : o_group,
+				n_user : user,
+				n_group : group,
+				caps : cap_token,
+			}
+		}
+		#[cfg(not(feature="enable_unsecure_features"))] {
+			trace!("Operation will be performed with this capability set : {}", Capabilities::from_current_proc().unwrap());
+			UserMap {
+				o_user : o_user,
+				o_group : o_group,
+				n_user : user,
+				n_group : group,
+			}
 		}
     }
 
     pub fn usermap(&self, req: &Request) -> (Uid, Gid) {
         let mut calling_u = req.uid();
         let mut calling_g = req.gid();
-        if self.settings.user_map.is_empty() {
-			trace!("No user mapping on requests.");
-		} else {
-			if let Some(mapped_u) = self.settings.user_map.get(&calling_u) {
-				trace!("Mapping uid {} to {}.", calling_u, mapped_u);
-				calling_u = *mapped_u;
-			}
-			if let Some(mapped_g) = self.settings.group_map.get(&calling_g) {
-				trace!("Mapping gid {} to {}", calling_g, mapped_g);
-				calling_g = *mapped_g;
+        #[cfg(feature="enable_unsecure_features")] {
+			if self.settings.user_map.is_empty() {
+				trace!("No user mapping on requests.");
+			} else {
+				if let Some(mapped_u) = self.settings.user_map.get(&calling_u) {
+					trace!("Mapping uid {} to {}.", calling_u, mapped_u);
+					calling_u = *mapped_u;
+				}
+				if let Some(mapped_g) = self.settings.group_map.get(&calling_g) {
+					trace!("Mapping gid {} to {}", calling_g, mapped_g);
+					calling_g = *mapped_g;
+				}
 			}
 		}
 		(calling_u, calling_g)

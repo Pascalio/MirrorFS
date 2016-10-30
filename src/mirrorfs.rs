@@ -32,6 +32,7 @@ const READ : u32 = 4;
 // TODO : What is TTL ?????
 const TTL: Timespec = Timespec { sec: 1, nsec: 0 };                 // 1 second
 
+#[cfg(feature="enable_unsecure_features")]
 pub struct Settings {
 	pub uid : Uid,
 	pub gid : Gid,
@@ -39,6 +40,12 @@ pub struct Settings {
 	// TODO: This implements process to disk mapping. Should we emplement reverse disk to process mapping too ?
 	pub user_map : HashMap<Uid, Uid>,
 	pub group_map : HashMap<Gid, Gid>,
+	pub caps : Capabilities,
+}
+#[cfg(not(feature="enable_unsecure_features"))]
+pub struct Settings {
+	pub uid : Uid,
+	pub gid : Gid,
 	pub caps : Capabilities,
 }
 impl Settings {
@@ -57,6 +64,7 @@ pub struct MirrorFS {
 }
 
 impl MirrorFS {
+	#[cfg(feature="enable_unsecure_features")]
     pub fn new(base_path : &str, virtual_path : &str, uid: Uid, gid : Gid, user_map : HashMap<Uid, Uid>, group_map : HashMap<Gid, Gid>, fullaccess: HashSet<Uid>, caps: Capabilities) -> MirrorFS {
         let mut fs = MirrorFS {
             base_path : base_path.to_owned(),
@@ -69,6 +77,24 @@ impl MirrorFS {
 				fullaccess : fullaccess,
 				user_map: user_map,
 				group_map: group_map,
+				caps : caps,
+			},
+        };
+        fs.inodes.store(1, &path::Path::new(base_path).to_path_buf(), 0);
+        fs.inodes.print_stats();
+        fs.inodes.hot_files.make_handle(None, 1); // This ensures inode 1 is never removed from cache. (always "hot")
+        fs
+    }
+    #[cfg(not(feature="enable_unsecure_features"))]
+    pub fn new(base_path : &str, virtual_path : &str, uid: Uid, gid : Gid, caps: Capabilities) -> MirrorFS {
+        let mut fs = MirrorFS {
+            base_path : base_path.to_owned(),
+            virtual_path : virtual_path.to_owned(),
+            inodes : InodeCache::new(10, 2),
+            dentry_cache : MultiMap::new(),
+            settings : Settings {
+				uid : uid,
+				gid : gid,
 				caps : caps,
 			},
         };
@@ -128,7 +154,7 @@ impl Filesystem for MirrorFS {
         p!(_req.uid());
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let path_base = match self.name2original(name, parent, _req, READ) {
             Ok(path) => path,
@@ -167,7 +193,7 @@ impl Filesystem for MirrorFS {
         };
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         match fs::create_dir(&to_create)
         {
@@ -207,7 +233,7 @@ impl Filesystem for MirrorFS {
         };
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let md = match dir.symlink_metadata() {
             Ok(md) => md,
@@ -235,7 +261,7 @@ impl Filesystem for MirrorFS {
         trace!("Made handle to directory {}", self.inodes.resolve(_ino).display());
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         reply.opened(self.inodes.hot_files.make_handle(None, _ino), _flags);
     }
@@ -245,7 +271,7 @@ impl Filesystem for MirrorFS {
         trace!("fn readdir for ino {}, at offset {}", ino, offset);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         if offset > 0 {
             if let Some(mut list) = self.dentry_cache.remove(&ino) {
@@ -337,7 +363,7 @@ impl Filesystem for MirrorFS {
         debug!("open callback for ino {} and flags {}", _ino, flags);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let path = self.inodes.resolve(_ino);
         let read_f =
@@ -372,7 +398,7 @@ impl Filesystem for MirrorFS {
         debug!("read callback for ino {} and file handle {}, at offset {} for the size of {}", ino, _fh, offset, _size);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let mut buffer = Vec::with_capacity(_size as usize);
         buffer.resize(_size as usize, 0);
@@ -413,7 +439,7 @@ impl Filesystem for MirrorFS {
     fn write (&mut self, _req: &Request, ino: u64, _fh: u64, offset: u64, data: &[u8], _flags: u32, reply: ReplyWrite) {
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let mut file = self.inodes.hot_files.take_file(_fh);
         if let Err(why) = file.seek(SeekFrom::Start(offset)) {
@@ -438,7 +464,7 @@ impl Filesystem for MirrorFS {
     fn flush (&mut self, _req: &Request, _ino: u64, _fh: u64, _lock_owner: u64, reply: ReplyEmpty) {
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let mut file = self.inodes.hot_files.take_file(_fh);
         match file.flush() {
@@ -464,7 +490,7 @@ impl Filesystem for MirrorFS {
         };
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let read_f =
                    flags | O_RDWR as u32 == flags
@@ -536,7 +562,7 @@ impl Filesystem for MirrorFS {
         };
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
 
         match fs::rename(&old_path, &new_path) {
@@ -572,7 +598,7 @@ impl Filesystem for MirrorFS {
         };
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         if first_path == next_path {
             reply.error(EEXIST);
@@ -609,7 +635,7 @@ impl Filesystem for MirrorFS {
         };
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let md = match file.symlink_metadata() {
             Ok(md) => md,
@@ -644,7 +670,7 @@ impl Filesystem for MirrorFS {
         };
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let kind = stat::SFlag::from_bits_truncate(_mode as libc::mode_t);
         let perm = stat::Mode::from_bits_truncate(_mode as libc::mode_t);
@@ -677,7 +703,7 @@ impl Filesystem for MirrorFS {
         let path = self.inodes.resolve(_ino);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         match path.symlink_metadata() {
             Ok(md) => {
@@ -695,7 +721,7 @@ impl Filesystem for MirrorFS {
         let path = self.inodes.resolve(_ino);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         if let Some(mode) = _mode {
             trace!("Setting mode {}", mode);
@@ -818,7 +844,7 @@ impl Filesystem for MirrorFS {
         };
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let mut virtual_name = path::PathBuf::from(&self.virtual_path);
         virtual_name.push(
@@ -854,7 +880,7 @@ impl Filesystem for MirrorFS {
         let symln = self.inodes.resolve(ino);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         match symln.read_link() {
             Ok(file) => {
@@ -872,7 +898,7 @@ impl Filesystem for MirrorFS {
         let path = self.inodes.resolve(_ino);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         // The libc way is racy: to avoid hypothetical cases where xattr change between the two calls, let's loop as long as the result is incoherent (hopefully only once!)
         loop {
@@ -928,7 +954,7 @@ impl Filesystem for MirrorFS {
         let path = self.inodes.resolve(_ino);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         // loop to avoid race conditions (cf listxattr)
         loop {
@@ -982,7 +1008,7 @@ impl Filesystem for MirrorFS {
         let path = self.inodes.resolve(_ino);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         //What's the use of _position ???
         trace!("_position = {:?}", _position);
@@ -1011,7 +1037,7 @@ impl Filesystem for MirrorFS {
         let path = self.inodes.resolve(_ino);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
                 
         if path.with_nix_path( |cstr| {
 			unsafe{
@@ -1033,7 +1059,7 @@ impl Filesystem for MirrorFS {
     fn fsync (&mut self, _req: &Request, ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         let file = self.inodes.hot_files.take_file(_fh);
         if _datasync {
@@ -1063,7 +1089,7 @@ impl Filesystem for MirrorFS {
         let path = self.inodes.resolve(_ino);
 
         // UserMap restores the fsuid/fsgid by Dropping.
-        let user_map = self.userprelude(_req);
+        let user_token = self.userprelude(_req);
 
         // TODO : replace this unsafe block by a call to the nix implementation ?
         unsafe {

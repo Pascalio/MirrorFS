@@ -1,3 +1,4 @@
+#![feature(stmt_expr_attributes)]
 extern crate fuse;
 extern crate libc;
 extern crate time;
@@ -34,7 +35,7 @@ use mirrorfs::MirrorFS;
 // Do not forget to have libfuse-dev and libcap-dev installed to compile on Linux!
 
 
-fn main () {
+fn main () {	
 	let cla = load_yaml!("cla.yml");
 	let args = App::from_yaml(cla)
 					.setting(AppSettings::UnifiedHelpMessage) // Do not separate "flags" from "options"
@@ -58,7 +59,7 @@ fn main () {
     let _ = CombinedLogger::init(
         vec![
         SimpleLogger::new(verbosity),
-        FileLogger::new(LogLevelFilter::Trace, OpenOptions::new().create(true).write(true).truncate(true).open("log").unwrap())
+        FileLogger::new(LogLevelFilter::Trace, OpenOptions::new().create(true).write(true).truncate(true).open("../log").unwrap())
         ]
     );
     info!{"Logging's up"};
@@ -112,97 +113,119 @@ fn main () {
 		Err(why) => warn!("Could not drop capabilities... {:?} These are the capabilities permitted for the process {}", why, &new_caps),
 	}
 	
-	// Build optional map of users who may override DAC, thus getting full access to any file.
-	let mut fullaccess_set : HashSet<u32>;
-	if let Some(users) = args.values_of("fullaccess") {
-		if fowner_cap && dac_override_cap {
-			fullaccess_set = HashSet::new(); // TODO: optimize with capacity...
-			for a_user in users {
-				if let Some(u) = get_user_by_name(a_user) {
-					fullaccess_set.insert(u.uid());
-					info!("Giving full access to uid {}", u.uid());
-				} else {
-					error!("User name {} is not valid. Not giving it full access.", a_user);
+	#[cfg(feature="enable_unsecure_features")] {
+		// Build optional map of users who may override DAC, thus getting full access to any file.
+		let mut fullaccess_set : HashSet<u32>;
+		if let Some(users) = args.values_of("fullaccess") {
+			if fowner_cap && dac_override_cap {
+				fullaccess_set = HashSet::new(); // TODO: optimize with capacity...
+				for a_user in users {
+					if let Some(u) = get_user_by_name(a_user) {
+						fullaccess_set.insert(u.uid());
+						info!("Giving full access to uid {}", u.uid());
+					} else {
+						error!("User name {} is not valid. Not giving it full access.", a_user);
+					}
 				}
+			} else {
+				fullaccess_set = HashSet::with_capacity(0);
+				error!("The CAP_FOWNER CAP_DAC_OVERRIDE capabilities are needed in order to be able to give certain users full access. Option is therefore dropped.");
 			}
 		} else {
 			fullaccess_set = HashSet::with_capacity(0);
-			error!("The CAP_FOWNER CAP_DAC_OVERRIDE capabilities are needed in order to be able to give certain users full access. Option is therefore dropped.");
 		}
-	} else {
-		fullaccess_set = HashSet::with_capacity(0);
-	}
-    
-    // Build optional user map.
-    let no_maps = args.occurrences_of("usermap") as usize;// TODO: or inline ??
-    let mut user_maps : HashMap<u32, u32> = HashMap::with_capacity(no_maps); // TODO: Other hasher.
-    if let Some(maps) = args.values_of("usermap") {
-		if !fsuid_cap {error!("We lack the CAP_SETUID capability. So user mapping is likely to fail in most cases!");}
-		let mut second_arg = false; // Any easier way in clap ??
-		let mut first_skip = false;
-		let mut uid_cached = 0;
-		for a_user in maps {
-			if second_arg {
-				second_arg = false; // Prepare for next iteration.
-				if first_skip {continue;} // if first arg was invalid and hence skipped, we skip the second one as well.
-				if let Some(u) = get_user_by_name(a_user) {
-					user_maps.entry(uid_cached).or_insert(u.uid());
-					info!("Mapping uid {} to uid {}", uid_cached, u.uid());
+		
+		// Build optional user map.
+		let no_maps = args.occurrences_of("usermap") as usize;// TODO: or inline ??
+		let mut user_maps : HashMap<u32, u32> = HashMap::with_capacity(no_maps); // TODO: Other hasher.
+		if let Some(maps) = args.values_of("usermap") {
+			if !fsuid_cap {error!("We lack the CAP_SETUID capability. So user mapping is likely to fail in most cases!");}
+			let mut second_arg = false; // Any easier way in clap ??
+			let mut first_skip = false;
+			let mut uid_cached = 0;
+			for a_user in maps {
+				if second_arg {
+					second_arg = false; // Prepare for next iteration.
+					if first_skip {continue;} // if first arg was invalid and hence skipped, we skip the second one as well.
+					if let Some(u) = get_user_by_name(a_user) {
+						user_maps.entry(uid_cached).or_insert(u.uid());
+						info!("Mapping uid {} to uid {}", uid_cached, u.uid());
+					} else {
+						error!("User name {} is not valid. Not mapping to it.", a_user);
+					}
+					
 				} else {
-					error!("User name {} is not valid. Not mapping to it.", a_user);
-				}
-				
-			} else {
-				second_arg = true; // Prepare for next iteration.
-				if let Some(u) = get_user_by_name(a_user) {
-					uid_cached = u.uid();
-				} else {
-					first_skip = true; // Invalid user name, so we skip the pair.
-					error!("User name {} is not valid. Not mapping the pair.", a_user);
+					second_arg = true; // Prepare for next iteration.
+					if let Some(u) = get_user_by_name(a_user) {
+						uid_cached = u.uid();
+					} else {
+						first_skip = true; // Invalid user name, so we skip the pair.
+						error!("User name {} is not valid. Not mapping the pair.", a_user);
+					}
 				}
 			}
 		}
-	}
-    // Build optional group map.
-    let no_maps = args.occurrences_of("groupmap") as usize;// TODO: or inline ??
-    let mut group_maps : HashMap<u32, u32> = HashMap::with_capacity(no_maps); // TODO: Other hasher.
-    if let Some(maps) = args.values_of("groupmap") {
-		if !fsgid_cap {error!("We lack the CAP_SETGID capability. So group mapping is likely to fail in most cases!");}
-		let mut second_arg = false; // Any easier way in clap ??
-		let mut first_skip = false;
-		let mut gid_cached = 0;
-		for a_group in maps {
-			if second_arg {
-				second_arg = false; // Prepare for next iteration.
-				if first_skip {continue;} // if first arg was invalid and hence skipped, we skip the second one as well.
-				if let Some(g) = get_group_by_name(a_group) {
-					group_maps.entry(gid_cached).or_insert(g.gid());
-					info!("Mapping gid {} to gid {}", gid_cached, g.gid());
+		// Build optional group map.
+		let no_maps = args.occurrences_of("groupmap") as usize;// TODO: or inline ??
+		let mut group_maps : HashMap<u32, u32> = HashMap::with_capacity(no_maps); // TODO: Other hasher.
+		if let Some(maps) = args.values_of("groupmap") {
+			if !fsgid_cap {error!("We lack the CAP_SETGID capability. So group mapping is likely to fail in most cases!");}
+			let mut second_arg = false; // Any easier way in clap ??
+			let mut first_skip = false;
+			let mut gid_cached = 0;
+			for a_group in maps {
+				if second_arg {
+					second_arg = false; // Prepare for next iteration.
+					if first_skip {continue;} // if first arg was invalid and hence skipped, we skip the second one as well.
+					if let Some(g) = get_group_by_name(a_group) {
+						group_maps.entry(gid_cached).or_insert(g.gid());
+						info!("Mapping gid {} to gid {}", gid_cached, g.gid());
+					} else {
+						error!("Group name {} is not valid. Not mapping to it.", a_group);
+					}
+					
 				} else {
-					error!("Group name {} is not valid. Not mapping to it.", a_group);
-				}
-				
-			} else {
-				second_arg = true; // Prepare for next iteration.
-				if let Some(g) = get_group_by_name(a_group) {
-					gid_cached = g.gid();
-				} else {
-					first_skip = true; // Invalid group name, so we skip the pair.
-					error!("Group name {} is not valid. Not mapping the pair.", a_group);
+					second_arg = true; // Prepare for next iteration.
+					if let Some(g) = get_group_by_name(a_group) {
+						gid_cached = g.gid();
+					} else {
+						first_skip = true; // Invalid group name, so we skip the pair.
+						error!("Group name {} is not valid. Not mapping the pair.", a_group);
+					}
 				}
 			}
 		}
-	}
+		
+		let fs = MirrorFS::new(
+			origin, 
+			mountpoint,
+			get_current_uid(),
+			get_current_gid(),
+			user_maps,
+			group_maps,
+			fullaccess_set,
+			new_caps
+		);
+		fs.mount(&mountpoint);
+	} 
+	#[cfg(not(feature="enable_unsecure_features"))] {
+		if args.is_present("fullaccess") {
+			error!("The fullaccess option is an unsecure option which has to be defined at compile time. Recompile with \"--features \"enable_unsecure_features\"\" to be able to use it!");
+		}
+		if args.is_present("usermap") {
+			error!("The usermap option is an unsecure option which has to be defined at compile time. Recompile with \"--features \"enable_unsecure_features\"\" to be able to use it!");
+		}
+		if args.is_present("groupmap") {
+			error!("The groupmap option is an unsecure option which has to be defined at compile time. Recompile with \"--features \"enable_unsecure_features\"\" to be able to use it!");
+		}
 
-    let fs = MirrorFS::new(
-		origin, 
-		mountpoint,
-		get_current_uid(),
-		get_current_gid(),
-		user_maps,
-		group_maps,
-		fullaccess_set,
-		new_caps
-	);
-    fs.mount(&mountpoint);
+		let fs = MirrorFS::new(
+			origin, 
+			mountpoint,
+			get_current_uid(),
+			get_current_gid(),
+			new_caps
+		);
+		fs.mount(&mountpoint);
+	}
 }

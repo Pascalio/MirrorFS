@@ -3,6 +3,10 @@ name = "mirrorfs"
 version = "0.2.0"
 authors = ["Pascalio"]
 
+[features]
+
+enable_unsecure_features = []
+
 [dependencies]
 fuse = "0.2.8"
 libc = ">= 0.1, < 0.3"
