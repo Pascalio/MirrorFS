@@ -117,10 +117,17 @@ fn main () {
 	
 	#[cfg(feature="enable_unsecure_features")] {
 		// Build optional map of users who may override DAC, thus getting full access to any file.
+<<<<<<< HEAD
 		let mut fullaccess_set : FastSet<u32>;
 		if let Some(users) = args.values_of("fullaccess") {
 			if fowner_cap && dac_override_cap {
 				fullaccess_set = FastSet::with_capacity(users.clone().count()); // TODO: optimize with capacity...
+=======
+		let mut fullaccess_set : HashSet<u32>;
+		if let Some(mut users) = args.values_of("fullaccess") {
+			if fowner_cap && dac_override_cap {
+				fullaccess_set = HashSet::with_capacity(users.clone().count());
+>>>>>>> unsecure-conditional-compilation
 				for a_user in users {
 					if let Some(u) = get_user_by_name(a_user) {
 						fullaccess_set.insert(u.uid());
@@ -130,8 +137,8 @@ fn main () {
 					}
 				}
 			} else {
-				fullaccess_set = Default::default();
-				error!("The CAP_FOWNER CAP_DAC_OVERRIDE capabilities are needed in order to be able to give certain users full access. Option is therefore dropped.");
+				fullaccess_set = HashSet::with_capacity(0);
+				error!("The CAP_FOWNER CAP_DAC_OVERRIDE (at least) capabilities are needed in order to be able to give certain users full access. Option is therefore dropped.");
 			}
 		} else {
 			fullaccess_set = Default::default();

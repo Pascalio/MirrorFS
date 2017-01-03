@@ -1,5 +1,6 @@
 name: MirrorFS
-about: An implementation of a userland secure Bind filesystem, written in Rust.
+about: "An implementation of a userland secure Bind filesystem, written in Rust. 
+Note : Some options may be very unsecure by definition (if the executable has some sort of automatic capabilities, like through SETUID bit, or file capabilities), they are only available when the executable is compiled with --features \"enable_unsecure_features\" Such option are : --user-map, --group_map and --full-access."
 args:
     - SRC:
         help: The original directory.
@@ -13,7 +14,7 @@ args:
         short: u
         long: user-map
         value_names: ["ORIGIN-USER", "EMBODIED-USER"]
-        help: "Map a specific user onto another user: when Alice is mapped onto Tom, she will be seen as Tom and not as Alice, for whatever she does inside the filesystem. This option may be called multiple times to map many users. This requires the CAP_SETUID capability, which preferably is enabled by setcap. It is normally provided when run as root as well of course."
+        help: "Map a specific user onto another user: when Alice is mapped onto Tom, she will be seen as Tom and not as Alice, for whatever she does inside the filesystem. This option may be called multiple times to map many users. This requires the CAP_SETUID capability, which preferably is enabled by setcap. It is normally provided when run as root as well of course. NOTE: unsecure features to be opted in at compile time."
         takes_value: true
         number_of_values: 2
         multiple: true
@@ -21,7 +22,7 @@ args:
         short: g
         long: group-map
         value_names: ["ORIGIN-GROUP", "EMBODIED-GROUP"]
-        help: "The same as the --user-map option, but mapping groups instead of users. This requires the CAP_SETGID capability, which preferably is enabled by setcap. It is normally provided when run as root as well of course."
+        help: "The same as the --user-map option, but mapping groups instead of users. This requires the CAP_SETGID capability, which preferably is enabled by setcap. It is normally provided when run as root as well of course. NOTE: unsecure features to be opted in at compile time."
         takes_value: true
         number_of_values: 2
         multiple: true
@@ -29,7 +30,7 @@ args:
         short: A
         long: full-access
         value_name: "USER ..."
-        help: "Override DAC security for the specified USERs : these users are given unchecked, unrestricted access to the files on the filesystem, as if they were ROOT. Multiple users may be entered. This option requires the CAP_FOWNER and CAP_DAC_OVERRIDE capabilities on the filesystem implementation (root, among others, has that capability)."
+        help: "Override DAC security for the specified USERs : these users are given unchecked, unrestricted access to the files on the filesystem, as if they were ROOT. Multiple users may be entered. This option requires the CAP_FOWNER and CAP_DAC_OVERRIDE capabilities on the filesystem implementation (root, among others, has that capability). NOTE: unsecure features to be opted in at compile time."
         takes_value: true
         min_values: 1
     - verbosity:
