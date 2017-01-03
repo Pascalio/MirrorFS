@@ -1,11 +1,13 @@
 /// Handles to opened inodes. Mainly indicates that they should not be garbage collected by the inode cache.
 
-use std::collections::HashMap;
 use std::sync::Mutex;
 use std::fs::File;
+use fasthashes::*;
 
 pub type FileHandle = u64;
 pub type Inode = u64;
+
+const HOTFILESIZE : usize = 100;
 
 pub struct HotFiles {
     mutex : Mutex<HotFilesMutexed>
@@ -17,8 +19,8 @@ struct FileEntry {
 }
 
 struct HotFilesMutexed {
-    by_fh : HashMap<FileHandle, FileEntry>,
-    by_ino : HashMap<Inode, u64>, // a count for handled files because of the hard link case.
+    by_fh : FastMap<FileHandle, FileEntry>,
+    by_ino : FastMap<Inode, u64>, // a count for handled files because of the hard link case.
     count : u64,
 }
 
@@ -26,11 +28,10 @@ impl HotFiles {
     pub fn new() -> HotFiles {
         debug!("Creating a hot file cache!");
         HotFiles {
-            // TODO Use other hasher.
             mutex : Mutex::new(
                 HotFilesMutexed {
-                    by_fh : HashMap::new(),
-                    by_ino : HashMap::new(),
+                    by_fh : FastMap::with_capacity(HOTFILESIZE),
+                    by_ino : FastMap::with_capacity(HOTFILESIZE),
                     count : 0,
                 }
             )

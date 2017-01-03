@@ -74,7 +74,7 @@ struct InoMapValue {
     links : HashSet<path::PathBuf>,
 }
 
-type InoMap = HashMap<Inode, InoMapValue>;
+type InoMap = FastMap<Inode, InoMapValue>;
 
 type Journal = Vec<JournalEntry>;
 
@@ -209,7 +209,6 @@ impl InodeCache {
         InodeCache {
             inode_mutex :
                 Mutex::new(InodeCacheMutex{
-                    //TODO other hasher
                     map : InoMap::with_capacity(size + MARGIN),
                     journal : Journal::create(size),
                     position : Index::new(size - 1), // size = 1 && index = 0.
