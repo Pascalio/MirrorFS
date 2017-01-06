@@ -3,10 +3,6 @@ extern crate multimap;
 
 use std::{path, fs, io};
 use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
-use std::collections::{HashMap, HashSet};
-use std::hash::BuildHasherDefault;
-use std::hash::Hash;
-use fnv::FnvHasher;
 use fuse::*;
 use time::*;
 use libc::{c_int, ENOSYS, ENOENT, EEXIST, O_RDWR, O_RDONLY, O_WRONLY, O_APPEND, O_TRUNC};
@@ -25,6 +21,7 @@ use capabilities::*;
 use inodecache::*;
 use helper::*;
 use user::*;
+#[cfg(feature="enable_unsecure_features")]
 use fasthashes::*;
 
 const WRITE : u32 = 2;

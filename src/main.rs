@@ -29,9 +29,12 @@ use clap::{App, AppSettings};
 use simplelog::{FileLogger, SimpleLogger, CombinedLogger, LogLevelFilter};
 use std::fs::OpenOptions;
 use capabilities::*;
-use users::{get_current_uid, get_current_gid, get_user_by_name, get_group_by_name};
+use users::{get_current_uid, get_current_gid};
+#[cfg(feature="enable_unsecure_features")]
+use users::{get_user_by_name, get_group_by_name};
 // Own namespaces
 use mirrorfs::MirrorFS;
+#[cfg(feature="enable_unsecure_features")]
 use fasthashes::*;
 
 // Do not forget to have libfuse-dev and libcap-dev installed to compile on Linux!
@@ -117,17 +120,10 @@ fn main () {
 	
 	#[cfg(feature="enable_unsecure_features")] {
 		// Build optional map of users who may override DAC, thus getting full access to any file.
-<<<<<<< HEAD
 		let mut fullaccess_set : FastSet<u32>;
 		if let Some(users) = args.values_of("fullaccess") {
 			if fowner_cap && dac_override_cap {
 				fullaccess_set = FastSet::with_capacity(users.clone().count()); // TODO: optimize with capacity...
-=======
-		let mut fullaccess_set : HashSet<u32>;
-		if let Some(mut users) = args.values_of("fullaccess") {
-			if fowner_cap && dac_override_cap {
-				fullaccess_set = HashSet::with_capacity(users.clone().count());
->>>>>>> unsecure-conditional-compilation
 				for a_user in users {
 					if let Some(u) = get_user_by_name(a_user) {
 						fullaccess_set.insert(u.uid());
@@ -137,7 +133,7 @@ fn main () {
 					}
 				}
 			} else {
-				fullaccess_set = HashSet::with_capacity(0);
+				fullaccess_set = FastSet::with_capacity(0);
 				error!("The CAP_FOWNER CAP_DAC_OVERRIDE (at least) capabilities are needed in order to be able to give certain users full access. Option is therefore dropped.");
 			}
 		} else {
@@ -176,7 +172,7 @@ fn main () {
 		}
 		// Build optional group map.
 		let no_maps = args.occurrences_of("groupmap") as usize;// TODO: or inline ??
-		let mut group_maps : FastMap<u32, u32> = FastMap::with_capacity(0);
+		let mut group_maps : FastMap<u32, u32> = FastMap::with_capacity(no_maps);
 		if let Some(maps) = args.values_of("groupmap") {
 			if !fsgid_cap {error!("We lack the CAP_SETGID capability. So group mapping is likely to fail in most cases!");}
 			let mut second_arg = false; // Any easier way in clap ??

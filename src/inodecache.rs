@@ -1,6 +1,6 @@
 /// lightweight universal inode cache.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Mutex;
 use std::path;
 use std::time;

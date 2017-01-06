@@ -1,6 +1,8 @@
 use fuse::Request;
 use mirrorfs::MirrorFS;
-use capabilities::{Capabilities, Capability, Flag};
+use capabilities::{Capabilities, Capability};
+#[cfg(feature="enable_unsecure_features")]
+use capabilities::Flag;
 
 pub type Uid = u32;
 pub type Gid = u32;
@@ -39,10 +41,12 @@ impl Drop for UserMap {
 	}
 }
 
+#[cfg(feature="enable_unsecure_features")]
 pub struct CapToken {
 	caps : Vec<Capability>
 }
 
+#[cfg(feature="enable_unsecure_features")]
 impl Drop for CapToken {
 	fn drop(&mut self) {
 		let mut caps = Capabilities::from_current_proc().unwrap();
@@ -118,26 +122,30 @@ impl MirrorFS {
 		}
     }
 
+	#[cfg(feature="enable_unsecure_features")]
     pub fn usermap(&self, req: &Request) -> (Uid, Gid) {
         let mut calling_u = req.uid();
         let mut calling_g = req.gid();
-        #[cfg(feature="enable_unsecure_features")] {
-			if self.settings.user_map.is_empty() {
-				trace!("No user mapping on requests.");
-			} else {
-				if let Some(mapped_u) = self.settings.user_map.get(&calling_u) {
-					trace!("Mapping uid {} to {}.", calling_u, mapped_u);
-					calling_u = *mapped_u;
-				}
-				if let Some(mapped_g) = self.settings.group_map.get(&calling_g) {
-					trace!("Mapping gid {} to {}", calling_g, mapped_g);
-					calling_g = *mapped_g;
-				}
+		if self.settings.user_map.is_empty() {
+			trace!("No user mapping on requests.");
+		} else {
+			if let Some(mapped_u) = self.settings.user_map.get(&calling_u) {
+				trace!("Mapping uid {} to {}.", calling_u, mapped_u);
+				calling_u = *mapped_u;
+			}
+			if let Some(mapped_g) = self.settings.group_map.get(&calling_g) {
+				trace!("Mapping gid {} to {}", calling_g, mapped_g);
+				calling_g = *mapped_g;
 			}
 		}
 		(calling_u, calling_g)
     }
+    #[cfg(not(feature="enable_unsecure_features"))]
+    pub fn usermap(&self, req: &Request) -> (Uid, Gid) {
+		(req.uid(), req.gid())
+    }
     
+    #[cfg(feature="enable_unsecure_features")]
     pub fn set_cap(&self, caps : &[Capability]) -> CapToken {
 		let mut added_caps : Vec<Capability> = Vec::new();
 		for cap in caps.iter() {
