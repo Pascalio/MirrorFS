@@ -7,7 +7,7 @@ authors = ["Pascalio"]
 enable_unsecure_features = []
 
 [dependencies]
-fuse = "0.2.8"
+fuse = "0.3"
 libc = ">= 0.1, < 0.3"
 nix = "*"
 time = "0.1"

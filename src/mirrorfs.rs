@@ -1,11 +1,12 @@
 extern crate time;
 extern crate multimap;
 
-use std::{path, fs, io};
+use std::{fs, io};
+use std::path::{Path, PathBuf};
 use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
 use fuse::*;
 use time::Timespec;
-use libc::{c_int, ENOSYS, ENOENT, EEXIST, O_RDWR, O_RDONLY, O_WRONLY, O_APPEND, O_TRUNC};
+use libc::{c_int, ENOSYS, ERANGE, ENOENT, EEXIST, O_RDWR, O_RDONLY, O_WRONLY, O_APPEND, O_TRUNC};
 use libc;
 use self::multimap::MultiMap;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -81,7 +82,7 @@ impl MirrorFS {
 				caps : caps,
 			},
         };
-        fs.inodes.store(1, &path::Path::new(base_path).to_path_buf(), 0);
+        fs.inodes.store(1, &Path::new(base_path).to_path_buf(), 0);
         fs.inodes.print_stats();
         fs.inodes.hot_files.make_handle(None, 1); // This ensures inode 1 is never removed from cache. (always "hot")
         fs
@@ -99,21 +100,21 @@ impl MirrorFS {
 				caps : caps,
 			},
         };
-        fs.inodes.store(1, &path::Path::new(base_path).to_path_buf(), 0);
+        fs.inodes.store(1, &Path::new(base_path).to_path_buf(), 0);
         fs.inodes.print_stats();
         fs.inodes.hot_files.make_handle(None, 1); // This ensures inode 1 is never removed from cache. (always "hot")
         fs
     }
 
-    pub fn mount<P: AsRef<path::Path>>(self, mountpoint : &P) {
+    pub fn mount<P: AsRef<Path>>(self, mountpoint : &P) {
 		// Mount options as if from the command line!
         mount(self, mountpoint, &["-oallow_other".as_ref()]);
     }
 
     /// take a 0-depth relative path from the virtual directory and return an absolute path to the base directory's element of the mirroring.
-    fn name2original (&mut self, name: &path::Path, parent : u64, req: &Request, access_on_parent: u32) -> Result<path::PathBuf, i32> {
+    fn name2original (&mut self, name: &Path, parent : u64, req: &Request, access_on_parent: u32) -> Result<PathBuf, i32> {
         // Get Base path of the mirroring.
-        let mut original = path::PathBuf::from(&self.base_path);
+        let mut original = PathBuf::from(&self.base_path);
         // Find parent path relative to the Base.
         if parent != 1 {
             trace!("Parent is not 1 -> looking for parent in inode cache !");
@@ -148,11 +149,11 @@ impl Filesystem for MirrorFS {
     }
     // Translate path to inode. Also get file attributes. Generation = ?
     // parent is ino of dir.
-    fn lookup (&mut self, _req: &Request, parent: u64, name: &path::Path, reply: ReplyEntry) {
-        debug!("lookup of \"{}\" in inode {} for process {} in user account {}...", name.display(), parent, _req.pid(), _req.uid());
-
-        p!(_req.pid()); // when not found, inode is watched by ??? the kernel? which dispatches in user's account process to call lookup and get attributes and read directory.
-        p!(_req.uid());
+    fn lookup (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, reply: ReplyEntry) {
+        debug!("lookup of \"{:?}\" in inode {} for process {} in user account {}...", _name, parent, _req.pid(), _req.uid());
+        
+        // This is cheap.
+        let name = Path::new(_name);
 
         // UserMap restores the fsuid/fsgid by Dropping.
         let user_token = self.userprelude(_req);
@@ -184,7 +185,8 @@ impl Filesystem for MirrorFS {
         self.inodes.remove(_ino, None, _req.pid(), _nlookup as usize);
     }
 
-    fn mkdir (&mut self, _req: &Request, parent: u64, name: &path::Path, _mode: u32, reply: ReplyEntry) {
+    fn mkdir (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _mode: u32, reply: ReplyEntry) {
+		let name = Path::new(_name);
         let to_create = match self.name2original(name, parent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
@@ -224,7 +226,8 @@ impl Filesystem for MirrorFS {
         }
     }
 
-    fn rmdir (&mut self, _req: &Request, parent: u64, name: &path::Path, reply: ReplyEmpty) {
+    fn rmdir (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, reply: ReplyEmpty) {
+		let name = Path::new(_name);
         let dir = match self.name2original(name, parent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
@@ -481,7 +484,8 @@ impl Filesystem for MirrorFS {
         self.inodes.hot_files.restore_file(_fh, file, _ino);
     }
 
-    fn create (&mut self, _req: &Request, parent: u64, name: &path::Path, _mode: u32, flags: u32, reply: ReplyCreate) {
+    fn create (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _mode: u32, flags: u32, reply: ReplyCreate) {
+		let name = Path::new(_name);
         let to_create = match self.name2original(name, parent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
@@ -546,7 +550,8 @@ impl Filesystem for MirrorFS {
         reply.ok();
     }
 
-    fn rename (&mut self, _req: &Request, parent: u64, name: &path::Path, _newparent: u64, _newname: &path::Path, reply: ReplyEmpty) {
+    fn rename (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _newparent: u64, _newname: &ffi::OsStr, reply: ReplyEmpty) {
+		let name = Path::new(_name);
         let old_path = match self.name2original(name, parent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
@@ -554,6 +559,7 @@ impl Filesystem for MirrorFS {
                 return;
             }
         };
+        //FIXME: review this...
         let new_path = match self.name2original(name, parent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
@@ -588,9 +594,10 @@ impl Filesystem for MirrorFS {
         }
     }
 
-    fn link (&mut self, _req: &Request, _ino: u64, _newparent: u64, _newname: &path::Path, reply: ReplyEntry) {
+    fn link (&mut self, _req: &Request, _ino: u64, _newparent: u64, _newname: &ffi::OsStr, reply: ReplyEntry) {
         let first_path = self.inodes.resolve(_ino);
-        let next_path = match self.name2original(_newname, _newparent, _req, WRITE) {
+        let newname = Path::new(_newname);
+        let next_path = match self.name2original(newname, _newparent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -626,7 +633,8 @@ impl Filesystem for MirrorFS {
         }
     }
 
-    fn unlink (&mut self, _req: &Request, parent: u64, name: &path::Path, reply: ReplyEmpty) {
+    fn unlink (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, reply: ReplyEmpty) {
+		let name = Path::new(_name);
         let file = match self.name2original(name, parent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
@@ -659,9 +667,10 @@ impl Filesystem for MirrorFS {
         }
     }
 
-    fn mknod (&mut self, _req: &Request, parent: u64, name: &path::Path, _mode: u32, _rdev: u32, reply: ReplyEntry) {
+    fn mknod (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _mode: u32, _rdev: u32, reply: ReplyEntry) {
         use nix::sys::stat;
-
+        
+        let name = Path::new(_name);
         let node = match self.name2original(name, parent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
@@ -835,7 +844,8 @@ impl Filesystem for MirrorFS {
         }
     }
     // TODO : implement an optional absolute-path anonymisation for the target, by making it relative to the link?
-    fn symlink (&mut self, _req: &Request, parent: u64, name: &path::Path, _link: &path::Path, reply: ReplyEntry) {
+    fn symlink (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _link: &Path, reply: ReplyEntry) {
+		let name = Path::new(_name);
         let name = match self.name2original(name, parent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
@@ -847,7 +857,7 @@ impl Filesystem for MirrorFS {
         // UserMap restores the fsuid/fsgid by Dropping.
         let user_token = self.userprelude(_req);
 
-        let mut virtual_name = path::PathBuf::from(&self.virtual_path);
+        let mut virtual_name = PathBuf::from(&self.virtual_path);
         virtual_name.push(
                         name.strip_prefix(&self.base_path)
                             .unwrap()
@@ -894,8 +904,8 @@ impl Filesystem for MirrorFS {
             }
         }
     }
-// FIXME: We have to improve the libfuse implementation in order to be able to debug and use list and get xattr functions...
-    fn listxattr (&mut self, _req: &Request, _ino: u64, reply: ReplyEmpty) {
+
+    fn listxattr (&mut self, _req: &Request, _ino: u64, _size: u32, reply: ReplyXattr) {
         let path = self.inodes.resolve(_ino);
 
         // UserMap restores the fsuid/fsgid by Dropping.
@@ -921,11 +931,18 @@ impl Filesystem for MirrorFS {
 				},
 				0 => {
 					trace!("{} has got no extended attribute", path.display());
-					//FIXME the callback should not take a ReplyEmpty !
-					reply.ok();
+					if _size == 0 {
+						reply.size(res as u32);
+					} else {
+						debug!("The kernel should not call back if there is no data to take, so not answering.")
+					}
 					break;
 				}
 				len @ _ => {
+					if _size == 0 {
+						reply.size(len as u32);
+						break;
+					}
 					let mut list = Vec::with_capacity(len as usize);
 					unsafe{list.set_len(len as usize);}
 					let list = list.as_mut_ptr();
@@ -939,8 +956,15 @@ impl Filesystem for MirrorFS {
 						}
 					}).unwrap();
 					if res == len {
-						trace!("Retrieved list of extended attributes for {}, but could not send them to fuse because the callback doesn't care...", path.display());
-						reply.ok();
+						if _size < len as u32 {
+							warn!("extended attribute list does not fit in kernel's buffer: aborting...");
+							reply.error(ERANGE);
+							break;
+						}
+						trace!("Sending list of extended attributes for {}", path.display());
+						reply.data(
+							unsafe{slice::from_raw_parts(list, len as usize)}
+						);
 						break;
 					} else {
 						let e = nix::errno::errno();
@@ -951,7 +975,7 @@ impl Filesystem for MirrorFS {
         }
     }
 
-    fn getxattr (&mut self, _req: &Request, _ino: u64, name: &ffi::OsStr, reply: ReplyData) {
+    fn getxattr (&mut self, _req: &Request, _ino: u64, name: &ffi::OsStr, _size: u32, reply: ReplyXattr) {
         let path = self.inodes.resolve(_ino);
 
         // UserMap restores the fsuid/fsgid by Dropping.
@@ -971,6 +995,10 @@ impl Filesystem for MirrorFS {
 			}).unwrap();
 			match res {
 				len if len >= 0 => {
+					if _size == 0 {
+						reply.size(len as u32);
+						break;
+					}
 					let mut value = Vec::with_capacity(len as usize);
 					unsafe {value.set_len(len as usize);}
 					let value = value.as_mut_ptr();
@@ -986,9 +1014,15 @@ impl Filesystem for MirrorFS {
 					}).unwrap();
 					if res != len {
 						let e = nix::errno::errno();
+						// TODO: review me: why errno ??
 						error!("Extended attribute under name {:?} has changed during the racy operation (for file {}) : retrying now until coherent result ! (error code {})", name, path.display(), e);
 					} else {
 						trace!("Happily retrieved value for extended attribute under name {:?} on file {}", name, path.display());
+						if _size < len as u32 {
+							warn!("extended attribute does not fit in kernel's buffer: aborting...");
+							reply.error(ERANGE);
+							break;
+						}
 						reply.data(
 							unsafe{slice::from_raw_parts(value, len as usize)}
 						);
