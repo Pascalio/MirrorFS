@@ -108,7 +108,10 @@ impl MirrorFS {
 
     pub fn mount<P: AsRef<Path>>(self, mountpoint : &P) {
 		// Mount options as if from the command line!
-        mount(self, mountpoint, &["-oallow_other".as_ref()]);
+        match mount(self, mountpoint, &["-oallow_other".as_ref()]) {
+			Ok(_) => trace!("Filesystem mounted and unmounted successfully."),
+			Err(e) => error!("Filesystem return error {:?}", e),
+		}
     }
 
     /// take a 0-depth relative path from the virtual directory and return an absolute path to the base directory's element of the mirroring.
@@ -550,17 +553,17 @@ impl Filesystem for MirrorFS {
         reply.ok();
     }
 
-    fn rename (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _newparent: u64, _newname: &ffi::OsStr, reply: ReplyEmpty) {
+    fn rename (&mut self, _req: &Request, _parent: u64, _name: &ffi::OsStr, _newparent: u64, _newname: &ffi::OsStr, reply: ReplyEmpty) {
 		let name = Path::new(_name);
-        let old_path = match self.name2original(name, parent, _req, WRITE) {
+        let old_path = match self.name2original(name, _parent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
                 return;
             }
         };
-        //FIXME: review this...
-        let new_path = match self.name2original(name, parent, _req, WRITE) {
+        let newname = Path::new(_newname);
+        let new_path = match self.name2original(newname, _newparent, _req, WRITE) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -1038,7 +1041,7 @@ impl Filesystem for MirrorFS {
 			}
         }
     }
-    // Altough list and get xattr aren't stable, set and get are quite ok !
+
     fn setxattr (&mut self, _req: &Request, _ino: u64, name: &ffi::OsStr, value: &[u8], _flags: u32, _position: u32, reply: ReplyEmpty) {
         let path = self.inodes.resolve(_ino);
 
