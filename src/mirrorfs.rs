@@ -4,7 +4,7 @@ extern crate multimap;
 use std::{path, fs, io};
 use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
 use fuse::*;
-use time::*;
+use time::Timespec;
 use libc::{c_int, ENOSYS, ENOENT, EEXIST, O_RDWR, O_RDONLY, O_WRONLY, O_APPEND, O_TRUNC};
 use libc;
 use self::multimap::MultiMap;
@@ -16,7 +16,7 @@ use std::slice;
 use nix;
 use nix::NixPath;
 use utime;
-use capabilities::*;
+use capabilities::{Capabilities, Capability, Flag};
 
 use inodecache::*;
 use helper::*;
