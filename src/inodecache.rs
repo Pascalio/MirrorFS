@@ -222,7 +222,7 @@ impl InodeCache {
                         + (size + MARGIN) * 2, // very roughly Journal + InoMap
         }
     }
-    pub fn store(&mut self, ino : Inode, path : &path::Path, pid : u32) {
+    pub fn store(&mut self, ino : Inode, path : &path::Path) {
         let mut i = self.inode_mutex.lock().expect("This is not supposed to happen...");
         let owned_path = path.to_path_buf();
         let start_index = i.position;
@@ -275,7 +275,7 @@ impl InodeCache {
             path::PathBuf::from("")
         }
     }
-    pub fn remove(&mut self, ino: Inode, link: Option<&path::Path>, pid: u32, count: usize) {
+    pub fn remove(&mut self, ino: Inode, link: Option<&path::Path>, pid: u32) {
         let mut i = self.inode_mutex.lock().expect("This is not supposed to happen...");
         let mut acc = 0;
         p!(i.map.len());

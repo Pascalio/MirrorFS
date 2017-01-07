@@ -25,12 +25,6 @@ use user::*;
 #[cfg(feature="enable_unsecure_features")]
 use fasthashes::*;
 
-const WRITE : u32 = 2;
-const READ : u32 = 4;
-// TODO: fix this.
-//const RDEX : u32 = 5; // On directories, read only allows to get names in the inode, and execute allows to get metadata (and hence to do something with the content of the dir, like proceding to subdirectories)
-//const RDWR : u32 = 6;
-
 // TODO : What is TTL ?????
 const TTL: Timespec = Timespec { sec: 1, nsec: 0 };                 // 1 second
 
@@ -82,7 +76,7 @@ impl MirrorFS {
 				caps : caps,
 			},
         };
-        fs.inodes.store(1, &Path::new(base_path).to_path_buf(), 0);
+        fs.inodes.store(1, &Path::new(base_path).to_path_buf());
         fs.inodes.print_stats();
         fs.inodes.hot_files.make_handle(None, 1); // This ensures inode 1 is never removed from cache. (always "hot")
         fs
@@ -100,7 +94,7 @@ impl MirrorFS {
 				caps : caps,
 			},
         };
-        fs.inodes.store(1, &Path::new(base_path).to_path_buf(), 0);
+        fs.inodes.store(1, &Path::new(base_path).to_path_buf());
         fs.inodes.print_stats();
         fs.inodes.hot_files.make_handle(None, 1); // This ensures inode 1 is never removed from cache. (always "hot")
         fs
@@ -115,7 +109,7 @@ impl MirrorFS {
     }
 
     /// take a 0-depth relative path from the virtual directory and return an absolute path to the base directory's element of the mirroring.
-    fn name2original (&mut self, name: &Path, parent : u64, req: &Request, access_on_parent: u32) -> Result<PathBuf, i32> {
+    fn name2original (&mut self, name: &Path, parent : u64) -> Result<PathBuf, i32> {
         // Get Base path of the mirroring.
         let mut original = PathBuf::from(&self.base_path);
         // Find parent path relative to the Base.
@@ -137,7 +131,6 @@ impl MirrorFS {
 - getlk ?
 - race conditions before ReplyEntry...
 - could we avoid copying some pathbufs ?
-- deduplicate error messages into constants.
 */
 impl Filesystem for MirrorFS {
     fn init(&mut self, _req: &Request) -> Result<(), c_int> {
@@ -150,7 +143,7 @@ impl Filesystem for MirrorFS {
         info!("MirrorFS was unmounted, and is now about to be destroyed!");
         //unmount other FS.
     }
-    // Translate path to inode. Also get file attributes. Generation = ?
+    // Translate path to inode. Also get file attributes. TODO: Generation = ?
     // parent is ino of dir.
     fn lookup (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, reply: ReplyEntry) {
         debug!("lookup of \"{:?}\" in inode {} for process {} in user account {}...", _name, parent, _req.pid(), _req.uid());
@@ -161,7 +154,7 @@ impl Filesystem for MirrorFS {
         // UserMap restores the fsuid/fsgid by Dropping.
         let user_token = self.userprelude(_req);
 
-        let path_base = match self.name2original(name, parent, _req, READ) {
+        let path_base = match self.name2original(name, parent) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -171,7 +164,7 @@ impl Filesystem for MirrorFS {
         // symlink_metadata avoids "dereferencing" symlinks : otherwise, metadata() would yield the metadata of the link's target, of course.
         match path_base.symlink_metadata() {
             Ok(md) => {
-				self.inodes.store(md.ino(), &path_base, _req.pid());
+				self.inodes.store(md.ino(), &path_base);
 				let attr : FileAttr = fill_file_attr(&md);
 				reply.entry(&TTL, &attr, 0);
 			},
@@ -185,12 +178,12 @@ impl Filesystem for MirrorFS {
 
     fn forget (&mut self, _req: &Request, _ino: u64, _nlookup: u64) {
         debug!("forget callback for ino {} # lookups {}.", _ino, _nlookup);
-        self.inodes.remove(_ino, None, _req.pid(), _nlookup as usize);
+        self.inodes.remove(_ino, None, _req.pid());
     }
 
     fn mkdir (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _mode: u32, reply: ReplyEntry) {
 		let name = Path::new(_name);
-        let to_create = match self.name2original(name, parent, _req, WRITE) {
+        let to_create = match self.name2original(name, parent) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -207,7 +200,7 @@ impl Filesystem for MirrorFS {
                 trace!("Successfully created directory {}", to_create.display());
                 match to_create.symlink_metadata() {
                     Ok(md) => {
-                        self.inodes.store(md.ino(), &to_create, _req.pid());
+                        self.inodes.store(md.ino(), &to_create);
                         reply.entry(
                             &TTL,
                             &fill_file_attr(&to_create
@@ -231,7 +224,7 @@ impl Filesystem for MirrorFS {
 
     fn rmdir (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, reply: ReplyEmpty) {
 		let name = Path::new(_name);
-        let dir = match self.name2original(name, parent, _req, WRITE) {
+        let dir = match self.name2original(name, parent) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -253,7 +246,7 @@ impl Filesystem for MirrorFS {
         match fs::remove_dir(&dir) {
             Ok(_) => {
                 trace!("Successfully removed directory {}", &dir.display());
-                self.inodes.remove(md.ino(), Some(&dir), 0, 0);
+                self.inodes.remove(md.ino(), Some(&dir), 0);
                 reply.ok();
             },
             Err(why) => {
@@ -489,7 +482,7 @@ impl Filesystem for MirrorFS {
 
     fn create (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _mode: u32, flags: u32, reply: ReplyCreate) {
 		let name = Path::new(_name);
-        let to_create = match self.name2original(name, parent, _req, WRITE) {
+        let to_create = match self.name2original(name, parent) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -527,7 +520,7 @@ impl Filesystem for MirrorFS {
                     },
                 };
                 let ino = md.ino();
-                self.inodes.store(ino, &to_create, _req.pid());
+                self.inodes.store(ino, &to_create);
                 // store it into the fh cache too.
 
                 trace!("Successfully created file {} with read={}, write={}, append={} and truncate={}", to_create.display(), read_f, write_f, append_f, truncate_f);
@@ -555,7 +548,7 @@ impl Filesystem for MirrorFS {
 
     fn rename (&mut self, _req: &Request, _parent: u64, _name: &ffi::OsStr, _newparent: u64, _newname: &ffi::OsStr, reply: ReplyEmpty) {
 		let name = Path::new(_name);
-        let old_path = match self.name2original(name, _parent, _req, WRITE) {
+        let old_path = match self.name2original(name, _parent) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -563,7 +556,7 @@ impl Filesystem for MirrorFS {
             }
         };
         let newname = Path::new(_newname);
-        let new_path = match self.name2original(newname, _newparent, _req, WRITE) {
+        let new_path = match self.name2original(newname, _newparent) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -580,8 +573,8 @@ impl Filesystem for MirrorFS {
                 match new_path.symlink_metadata() {
                     Ok(md) => {
                         trace!("Successfully renamed {} to {}", old_path.display(), new_path.display());
-                        self.inodes.remove(md.ino(), Some(&old_path), 0, 0);
-                        self.inodes.store(md.ino(), &new_path, _req.pid());
+                        self.inodes.remove(md.ino(), Some(&old_path), 0);
+                        self.inodes.store(md.ino(), &new_path);
                         reply.ok();
                     },
                     Err(why) => {
@@ -600,7 +593,7 @@ impl Filesystem for MirrorFS {
     fn link (&mut self, _req: &Request, _ino: u64, _newparent: u64, _newname: &ffi::OsStr, reply: ReplyEntry) {
         let first_path = self.inodes.resolve(_ino);
         let newname = Path::new(_newname);
-        let next_path = match self.name2original(newname, _newparent, _req, WRITE) {
+        let next_path = match self.name2original(newname, _newparent) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -638,7 +631,7 @@ impl Filesystem for MirrorFS {
 
     fn unlink (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, reply: ReplyEmpty) {
 		let name = Path::new(_name);
-        let file = match self.name2original(name, parent, _req, WRITE) {
+        let file = match self.name2original(name, parent) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -660,7 +653,7 @@ impl Filesystem for MirrorFS {
         match fs::remove_file(&file) {
             Ok(_) => {
                 trace!("Successfully removed file {}", &file.display());
-                self.inodes.remove(md.ino(), Some(&file), 0, 0);
+                self.inodes.remove(md.ino(), Some(&file), 0);
                 reply.ok();
             },
             Err(why) => {
@@ -674,7 +667,7 @@ impl Filesystem for MirrorFS {
         use nix::sys::stat;
         
         let name = Path::new(_name);
-        let node = match self.name2original(name, parent, _req, WRITE) {
+        let node = match self.name2original(name, parent) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -693,7 +686,7 @@ impl Filesystem for MirrorFS {
                 trace!("Successfully created node {} as a {:?} with permissions {:?}", node.display(), kind, perm);
                 match node.symlink_metadata() {
                     Ok(md) => {
-                        self.inodes.store(md.ino(), &node, _req.pid());
+                        self.inodes.store(md.ino(), &node);
                         reply.entry(&TTL,
                         &fill_file_attr(&md),
                         0// Generation?
@@ -849,7 +842,7 @@ impl Filesystem for MirrorFS {
     // TODO : implement an optional absolute-path anonymisation for the target, by making it relative to the link?
     fn symlink (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _link: &Path, reply: ReplyEntry) {
 		let name = Path::new(_name);
-        let name = match self.name2original(name, parent, _req, WRITE) {
+        let name = match self.name2original(name, parent) {
             Ok(path) => path,
             Err(e) => {
                 reply.error(e);
@@ -870,7 +863,7 @@ impl Filesystem for MirrorFS {
                 trace!("Successfully created symlink {} pointing to {}", name.display(), _link.display());
                 match name.symlink_metadata() {
                     Ok(md) => {
-                        self.inodes.store(md.ino(), &name, _req.pid());
+                        self.inodes.store(md.ino(), &name);
                         reply.entry(
                             &TTL,
                             &fill_file_attr(&md),
