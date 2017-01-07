@@ -19,6 +19,4 @@ It is designed to leverage modern Linux technologies, such as capabilities and F
 *To do for release 1.0.0 :*  
 - bug tracking...  
 - optimizazions  
-- resolving all the FIXME's and most of the TODO's in the source code  
-- removing some compilation warnings.  
 - cleaning up some "use" and "extern crate"...
