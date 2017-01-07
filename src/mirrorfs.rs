@@ -25,8 +25,8 @@ use user::*;
 #[cfg(feature="enable_unsecure_features")]
 use fasthashes::*;
 
-// TODO : What is TTL ?????
-const TTL: Timespec = Timespec { sec: 1, nsec: 0 };                 // 1 second
+// TODO : What is TTL by the way?
+const TTL: Timespec = Timespec { sec: 1, nsec: 0 }; // 1 second
 
 #[cfg(feature="enable_unsecure_features")]
 pub struct Settings {
@@ -143,12 +143,12 @@ impl Filesystem for MirrorFS {
         info!("MirrorFS was unmounted, and is now about to be destroyed!");
         //unmount other FS.
     }
-    // Translate path to inode. Also get file attributes. TODO: Generation = ?
+    // Translate path to inode. Also get file attributes.
     // parent is ino of dir.
     fn lookup (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, reply: ReplyEntry) {
         debug!("lookup of \"{:?}\" in inode {} for process {} in user account {}...", _name, parent, _req.pid(), _req.uid());
         
-        // This is cheap.
+        // This is cheap transformation.
         let name = Path::new(_name);
 
         // UserMap restores the fsuid/fsgid by Dropping.
@@ -839,7 +839,7 @@ impl Filesystem for MirrorFS {
             Err(e) => reply.error(e),
         }
     }
-    // TODO : implement an optional absolute-path anonymisation for the target, by making it relative to the link?
+
     fn symlink (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _link: &Path, reply: ReplyEntry) {
 		let name = Path::new(_name);
         let name = match self.name2original(name, parent) {
@@ -1009,9 +1009,7 @@ impl Filesystem for MirrorFS {
 						}
 					}).unwrap();
 					if res != len {
-						let e = nix::errno::errno();
-						// TODO: review me: why errno ??
-						error!("Extended attribute under name {:?} has changed during the racy operation (for file {}) : retrying now until coherent result ! (error code {})", name, path.display(), e);
+						error!("Extended attribute under name {:?} has changed during the racy operation (for file {}) : retrying now until coherent result !", name, path.display());
 					} else {
 						trace!("Happily retrieved value for extended attribute under name {:?} on file {}", name, path.display());
 						if _size < len as u32 {

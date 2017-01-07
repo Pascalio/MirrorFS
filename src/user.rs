@@ -57,7 +57,6 @@ impl Drop for CapToken {
 }
 
 impl MirrorFS {
-	// TODO: Possibly, mimic capabilities set of calling process (ie, non-0 uids with capabilities).
     pub fn userprelude(&self, req: &Request) -> UserMap {
         let (user, group) = self.usermap(req);
 

@@ -129,7 +129,7 @@ fn main () {
 		let mut fullaccess_set : FastSet<u32>;
 		if let Some(users) = args.values_of("fullaccess") {
 			if fowner_cap && dac_override_cap {
-				fullaccess_set = FastSet::with_capacity(users.clone().count()); // TODO: optimize with capacity...
+				fullaccess_set = FastSet::with_capacity(users.clone().count());
 				for a_user in users {
 					if let Some(u) = get_user_by_name(a_user) {
 						fullaccess_set.insert(u.uid());
@@ -147,7 +147,7 @@ fn main () {
 		}
 		
 		// Build optional user map.
-		let no_maps = args.occurrences_of("usermap") as usize;// TODO: or inline ??
+		let no_maps = args.occurrences_of("usermap") as usize;
 		let mut user_maps : FastMap<u32, u32> = FastMap::with_capacity(no_maps);
 		if let Some(maps) = args.values_of("usermap") {
 			if !fsuid_cap {error!("We lack the CAP_SETUID capability. So user mapping is likely to fail in most cases!");}
@@ -177,7 +177,7 @@ fn main () {
 			}
 		}
 		// Build optional group map.
-		let no_maps = args.occurrences_of("groupmap") as usize;// TODO: or inline ??
+		let no_maps = args.occurrences_of("groupmap") as usize;
 		let mut group_maps : FastMap<u32, u32> = FastMap::with_capacity(no_maps);
 		if let Some(maps) = args.values_of("groupmap") {
 			if !fsgid_cap {error!("We lack the CAP_SETGID capability. So group mapping is likely to fail in most cases!");}
