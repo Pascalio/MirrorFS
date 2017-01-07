@@ -97,7 +97,7 @@ impl MirrorFS {
 			// TODO: optimize for regular case where no full access.
 			let cap_token = if self.settings.fullaccess.contains(&user) {
 				trace!("Giving {} full access!", user);
-				Some(self.set_cap(&[Capability::CAP_FOWNER, Capability::CAP_DAC_OVERRIDE, Capability::CAP_MKNOD, Capability::CAP_CHOWN, Capability::CAP_SETFCAP]))
+				Some(self.set_cap(&[Capability::CAP_FOWNER, Capability::CAP_DAC_OVERRIDE, Capability::CAP_MKNOD, Capability::CAP_CHOWN, Capability::CAP_SETFCAP, Capability::CAP_SYS_ADMIN]))
 			} else {
 				trace!("Not giving {} full access.", user);
 				None

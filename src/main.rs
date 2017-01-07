@@ -69,12 +69,14 @@ fn main () {
     );
     info!{"Logging's up"};
     
+    //TODO: bounding box?
     // Check what capabilities we may use, and drop all needless ones.
     let mut caps = Capabilities::from_current_proc().unwrap();
 	// Check for all usable caps.
 	let chown_cap = caps.check(Capability::CAP_CHOWN, Flag::Permitted); // for chown obviously
-	let fowner_cap = caps.check(Capability::CAP_FOWNER, Flag::Permitted); // for extended attributes; Note: if setfsuid did not unset CAP_FOWNER, this (process-wide) capability would make a huge race condition privilege escalation bug. FIXME: check with non-zero uid which has received capabilities.
-	let setfcap_cap = caps.check(Capability::CAP_SETFCAP, Flag::Permitted); // for setting file capabilities. FIXME: cf fowner_cap...
+	let fowner_cap = caps.check(Capability::CAP_FOWNER, Flag::Permitted); // for root omnipotence: do things as the owner of arbitrary files
+	let setfcap_cap = caps.check(Capability::CAP_SETFCAP, Flag::Permitted); // for setting file capabilities
+	let sysadmin_cap = caps.check(Capability::CAP_SYS_ADMIN, Flag::Permitted); // for setting file trusted and security xattr.
 	let mknod_cap = caps.check(Capability::CAP_MKNOD, Flag::Permitted); // for mknod only in case of neither regular file, nor FIFO, nor Unix domain socket
 	let dac_override_cap = caps.check(Capability::CAP_DAC_OVERRIDE, Flag::Permitted); // used by the "full-access" option
 	let fsuid_cap = caps.check(Capability::CAP_SETUID, Flag::Permitted); // for every fs operation on the behalf of another user.
@@ -101,6 +103,10 @@ fn main () {
 	if setfcap_cap {
 		caps.update(&[Capability::CAP_SETFCAP], Flag::Permitted, true);
 		caps.update(&[Capability::CAP_SETFCAP], Flag::Effective, true);
+	}
+	if sysadmin_cap {
+		caps.update(&[Capability::CAP_SYS_ADMIN], Flag::Permitted, true);
+		caps.update(&[Capability::CAP_SYS_ADMIN], Flag::Effective, true);
 	}
 	if mknod_cap {
 		caps.update(&[Capability::CAP_MKNOD], Flag::Permitted, true);
