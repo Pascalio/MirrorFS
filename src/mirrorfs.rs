@@ -779,7 +779,7 @@ impl Filesystem for MirrorFS {
             }
             unsafe {
                 if libc::chown(
-                // TODO : with nix path ?
+                // TODO : with nix path ? (doesn't seem necessary from my experiments...)
                     path.as_os_str().to_str().unwrap().as_ptr() as *const libc::c_char,
                     uid as libc::uid_t,
                     gid as libc::gid_t
