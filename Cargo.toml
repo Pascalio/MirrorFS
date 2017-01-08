@@ -8,14 +8,14 @@ enable_unsecure_features = []
 
 [dependencies]
 fuse = "0.3"
-libc = ">= 0.1, < 0.3"
+libc = "0.2.17"
 nix = "*"
 time = "0.1"
 multimap = "0.3.0"
 log = "0.3"
 simplelog = "^0.1.0"
 p-macro = "0.2.0"
-utime = "0.1"
+utime = "*"
 syscall = "0.2.1"
 capabilities = "0.2.0"
 users = "0.5.2"

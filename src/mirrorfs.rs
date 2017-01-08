@@ -1,6 +1,3 @@
-extern crate time;
-extern crate multimap;
-
 use std::{fs, io};
 use std::path::{Path, PathBuf};
 use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
@@ -8,7 +5,7 @@ use fuse::*;
 use time::Timespec;
 use libc::{c_int, ENOSYS, ERANGE, ENOENT, EEXIST, O_RDWR, O_RDONLY, O_WRONLY, O_APPEND, O_TRUNC};
 use libc;
-use self::multimap::MultiMap;
+use multimap::MultiMap;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::mem;

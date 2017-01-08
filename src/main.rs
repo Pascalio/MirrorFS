@@ -16,6 +16,7 @@ extern crate clap;
 extern crate capabilities;
 extern crate users;
 extern crate fnv;
+extern crate multimap;
 
 // Own modules
 mod mirrorfs;
