@@ -3,8 +3,10 @@ extern crate fuse;
 extern crate libc;
 extern crate time;
 #[macro_use]
-extern crate log;
-extern crate simplelog;
+extern crate slog;
+#[macro_use]
+extern crate slog_scope;
+extern crate slog_term;
 #[macro_use]
 extern crate nix;
 extern crate utime;
@@ -26,7 +28,7 @@ mod user;
 mod fasthashes;
 
 use clap::{App, AppSettings};
-use simplelog::{FileLogger, SimpleLogger, CombinedLogger, LogLevelFilter};
+use slog::{DrainExt, Level, LevelFilter};
 use std::fs::OpenOptions;
 use capabilities::{Capabilities, Capability, Flag};
 use users::{get_current_uid, get_current_gid};
@@ -49,24 +51,18 @@ fn main () {
 					.get_matches();
     let mountpoint = args.value_of("DST").unwrap();
     let origin = args.value_of("SRC").unwrap();
-    let verbosity = if args.is_present("quiet") {LogLevelFilter::Off} else {
+    let verbosity = if args.is_present("quiet") {Level::Critical} else {
 		match args.value_of("verbosity").unwrap()/* field has a default value, so unwrapping is safe*/ {
-			"Trace" => LogLevelFilter::Trace,
-			"Debug" => LogLevelFilter::Debug,
-			"Info" => LogLevelFilter::Info,
-			"Warn" => LogLevelFilter::Warn,
-			"Error" => LogLevelFilter::Error,
-			_ => LogLevelFilter::Off,
+			"Trace" => Level::Trace,
+			"Debug" => Level::Debug,
+			"Info" => Level::Info,
+			"Warn" => Level::Warning,
+			"Error" => Level::Error,
+			_ => Level::Critical,
 		}
     };
     
-    //TODO : asynchronous logging framework...
-    let _ = CombinedLogger::init(
-        vec![
-        SimpleLogger::new(verbosity),
-        FileLogger::new(LogLevelFilter::Trace, OpenOptions::new().create(true).write(true).truncate(true).open("../log").unwrap())
-        ]
-    );
+    slog_scope::set_global_logger(slog::Logger::root(LevelFilter::new(slog_term::streamer().build().fuse(), verbosity), o![]));
     info!{"Logging's up"};
     
     //TODO: bounding box?
