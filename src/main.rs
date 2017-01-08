@@ -28,7 +28,7 @@ mod user;
 mod fasthashes;
 
 use clap::{App, AppSettings};
-use slog::{DrainExt, Level, LevelFilter};
+use slog::{DrainExt, Level, LevelFilter, Record};
 use std::fs::OpenOptions;
 use capabilities::{Capabilities, Capability, Flag};
 use users::{get_current_uid, get_current_gid};
@@ -62,7 +62,16 @@ fn main () {
 			"Error" => Level::Error,
 			_ => Level::Critical,
 		};
-		slog_scope::set_global_logger(slog::Logger::root(LevelFilter::new(slog_term::streamer().async().build().fuse(), verbosity), o![]));
+		// TODO: improve output, move the origin information before the message.
+		slog_scope::set_global_logger(slog::Logger::root(LevelFilter::new(slog_term::streamer().async().stderr().build().fuse(), verbosity), o!(
+			"triggered at" =>
+				move |info : &Record| {
+				format!("{}:{}",
+				   info.file(),
+				   info.line(),
+				)
+			}
+		)));
 		info!{"Logging's up"};
     }
 
