@@ -278,7 +278,6 @@ impl InodeCache {
     pub fn remove(&mut self, ino: Inode, link: Option<&path::Path>, pid: u32) {
         let mut i = self.inode_mutex.lock().expect("This is not supposed to happen...");
         let mut acc = 0;
-        p!(i.map.len());
         if !i.map.contains_key(&ino) {
             // This is not so uncommon because certain process call this after an unsuccessful call to lookup, or after having unlinked the file (which automatically shrinks the cache). Downgrade to warn!() ?
             error!("Tried to remove from cache an inode entry that did not exist... Inode = {}, Process = {}", ino, pid);
@@ -308,7 +307,6 @@ impl InodeCache {
         }
         trace!("Freed {} bytes in inode cache.", acc);
         self.total_size -= acc;
-        p!(i.map.len());
     }
     pub fn print_stats(&self) {
         trace!("Approximate size of inode cache is of {} bytes ({} usize units)", self.total_size * 4, self.total_size);

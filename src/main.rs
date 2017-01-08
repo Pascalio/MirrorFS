@@ -6,7 +6,6 @@ extern crate time;
 extern crate log;
 extern crate simplelog;
 #[macro_use]
-extern crate p_macro;
 extern crate nix;
 extern crate utime;
 #[macro_use]
