@@ -100,7 +100,7 @@ impl MirrorFS {
     pub fn mount<P: AsRef<Path>>(self, mountpoint : &P) {
 		// Mount options as if from the command line!
         match mount(self, mountpoint, &["-oallow_other".as_ref()]) {
-			Ok(_) => trace!("Filesystem mounted and unmounted successfully."),
+			Ok(_) => trace!("Filesystem unmounted successfully."),
 			Err(e) => error!("Filesystem return error {:?}", e),
 		}
     }
@@ -144,7 +144,7 @@ impl Filesystem for MirrorFS {
     // parent is ino of dir.
     fn lookup (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, reply: ReplyEntry) {
         debug!("lookup of \"{:?}\" in inode {} for process {} in user account {}...", _name, parent, _req.pid(), _req.uid());
-        
+
         // This is cheap transformation.
         let name = Path::new(_name);
 
@@ -662,7 +662,7 @@ impl Filesystem for MirrorFS {
 
     fn mknod (&mut self, _req: &Request, parent: u64, _name: &ffi::OsStr, _mode: u32, _rdev: u32, reply: ReplyEntry) {
         use nix::sys::stat;
-        
+
         let name = Path::new(_name);
         let node = match self.name2original(name, parent) {
             Ok(path) => path,
@@ -830,7 +830,7 @@ impl Filesystem for MirrorFS {
 
     fn access (&mut self, _req: &Request, _ino: u64, _mask: u32, reply: ReplyEmpty) {
         let path = self.inodes.resolve(_ino);
-        
+
         match self.u_access(_req, &path, _mask) {
             Ok(_) => reply.ok(),
             Err(e) => reply.error(e),
@@ -1038,7 +1038,7 @@ impl Filesystem for MirrorFS {
 
         //What's the use of _position ???
         trace!("_position = {:?}", _position);
-        
+
 		if path.with_nix_path( |cstr| {
 			unsafe{
 				libc::lsetxattr(
@@ -1064,7 +1064,7 @@ impl Filesystem for MirrorFS {
 
         // UserMap restores the fsuid/fsgid by Dropping.
         let user_token = self.userprelude(_req);
-                
+
         if path.with_nix_path( |cstr| {
 			unsafe{
 				libc::removexattr(

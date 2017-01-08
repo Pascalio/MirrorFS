@@ -42,29 +42,30 @@ use fasthashes::*;
 // Do not forget to have libfuse-dev and libcap-dev installed to compile on Linux!
 
 
-fn main () {	
+fn main () {
 	let cla = load_yaml!("cla.yml");
 	let args = App::from_yaml(cla)
 					.setting(AppSettings::UnifiedHelpMessage) // Do not separate "flags" from "options"
 					.author(crate_authors!())
 					.version(crate_version!())
 					.get_matches();
+
     let mountpoint = args.value_of("DST").unwrap();
     let origin = args.value_of("SRC").unwrap();
-    let verbosity = if args.is_present("quiet") {Level::Critical} else {
-		match args.value_of("verbosity").unwrap()/* field has a default value, so unwrapping is safe*/ {
+
+    if !args.is_present("quiet") {
+		let verbosity = match args.value_of("verbosity").unwrap()/* field has a default value, so unwrapping is safe*/ {
 			"Trace" => Level::Trace,
 			"Debug" => Level::Debug,
 			"Info" => Level::Info,
 			"Warn" => Level::Warning,
 			"Error" => Level::Error,
 			_ => Level::Critical,
-		}
-    };
-    
-    slog_scope::set_global_logger(slog::Logger::root(LevelFilter::new(slog_term::streamer().build().fuse(), verbosity), o![]));
-    info!{"Logging's up"};
-    
+		};
+		slog_scope::set_global_logger(slog::Logger::root(LevelFilter::new(slog_term::streamer().async().build().fuse(), verbosity), o![]));
+		info!{"Logging's up"};
+    }
+
     //TODO: bounding box?
     // Check what capabilities we may use, and drop all needless ones.
     let mut caps = Capabilities::from_current_proc().unwrap();
@@ -119,7 +120,7 @@ fn main () {
 		Ok(_) => debug!("These are the capabilities set for the filesystem implementation {}", &new_caps),
 		Err(why) => warn!("Could not drop capabilities... {:?} These are the capabilities permitted for the process {}", why, &new_caps),
 	}
-	
+
 	#[cfg(feature="enable_unsecure_features")] {
 		// Build optional map of users who may override DAC, thus getting full access to any file.
 		let mut fullaccess_set : FastSet<u32>;
@@ -141,7 +142,7 @@ fn main () {
 		} else {
 			fullaccess_set = Default::default();
 		}
-		
+
 		// Build optional user map.
 		let no_maps = args.occurrences_of("usermap") as usize;
 		let mut user_maps : FastMap<u32, u32> = FastMap::with_capacity(no_maps);
@@ -160,7 +161,7 @@ fn main () {
 					} else {
 						error!("User name {} is not valid. Not mapping to it.", a_user);
 					}
-					
+
 				} else {
 					second_arg = true; // Prepare for next iteration.
 					if let Some(u) = get_user_by_name(a_user) {
@@ -190,7 +191,7 @@ fn main () {
 					} else {
 						error!("Group name {} is not valid. Not mapping to it.", a_group);
 					}
-					
+
 				} else {
 					second_arg = true; // Prepare for next iteration.
 					if let Some(g) = get_group_by_name(a_group) {
@@ -202,9 +203,9 @@ fn main () {
 				}
 			}
 		}
-		
+
 		let fs = MirrorFS::new(
-			origin, 
+			origin,
 			mountpoint,
 			get_current_uid(),
 			get_current_gid(),
@@ -214,7 +215,7 @@ fn main () {
 			new_caps
 		);
 		fs.mount(&mountpoint);
-	} 
+	}
 	#[cfg(not(feature="enable_unsecure_features"))] {
 		if args.is_present("fullaccess") {
 			error!("The fullaccess option is an unsecure option which has to be defined at compile time. Recompile with \"--features \"enable_unsecure_features\"\" to be able to use it!");
@@ -227,7 +228,7 @@ fn main () {
 		}
 
 		let fs = MirrorFS::new(
-			origin, 
+			origin,
 			mountpoint,
 			get_current_uid(),
 			get_current_gid(),

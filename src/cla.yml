@@ -37,11 +37,12 @@ args:
         short: v
         long: verbosity
         value_name: LEVEL
-        help: Sets the level of verbosity, ie. how much information will be dumped to screen.
+        help: "Sets the level of verbosity, ie. how much information will be dumped to screen. This option conflicts with the --quiet option."
         takes_value: true
         possible_values: ["Quiet", "Error", "Warn", "Info", "Debug", "Trace"]
         default_value: "Error"
     - quiet:
         short: q
         long: quiet
-        help: Alias to --verbosity Quiet
+        help: "Nothing will be logged by th program."
+        conflicts_with: verbosity
