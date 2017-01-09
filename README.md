@@ -15,8 +15,4 @@ It is designed to leverage modern Linux technologies, such as capabilities and F
 - deprivileged root (dropping unneeded capabilities)
 - large spectrum of verbosity: from quiet to extremely verbose, for the curious (or the debugging one)
 
-###Stage Beta
-*To do for release 1.0.0 :*  
-- bug tracking...  
-- optimizazions  
-- cleaning up some "use" and "extern crate"...
+####Version 1.0.0

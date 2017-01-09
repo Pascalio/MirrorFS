@@ -1,4 +1,4 @@
-/// lightweight universal inode cache.
+/// A novel inode cache, perhaps a little too fussy... time will tell.
 
 use std::collections::HashSet;
 use std::sync::Mutex;

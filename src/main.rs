@@ -29,7 +29,6 @@ mod fasthashes;
 
 use clap::{App, AppSettings};
 use slog::{DrainExt, Level, LevelFilter, Record};
-use std::fs::OpenOptions;
 use capabilities::{Capabilities, Capability, Flag};
 use users::{get_current_uid, get_current_gid};
 #[cfg(feature="enable_unsecure_features")]
